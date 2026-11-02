@@ -101,6 +101,7 @@ export const LoginPage: React.FC = () => {
         <p className="text-xs sm:text-sm text-emerald-100/90 mt-1 max-w-md">
           {brandSubtitle} • {settings?.eventYear || 2026}
         </p>
+        <p className="text-sm font-semibold text-white mt-2">Ola, mundo</p>
       </div>
 
       {/* Login Card */}
