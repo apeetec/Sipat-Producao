@@ -11,6 +11,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { Alert } from '../../../components/ui/Alert';
 import { Pagination } from '../../../components/ui/Pagination';
+import { Table } from '../../../components/ui/table';
 import { toast } from '../../../components/feedback/ToastContainer';
 import {
   Users,
@@ -279,7 +280,7 @@ export const AdminUsersPage: React.FC = () => {
       <div className="space-y-6">
         {/* Search & Filters */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[240px]">
+          <div className="w-full min-w-0 sm:flex-1">
             <TextField
               placeholder="Buscar por matrícula, nome ou e-mail..."
               value={search}
@@ -291,7 +292,7 @@ export const AdminUsersPage: React.FC = () => {
             />
           </div>
 
-          <div className="w-48">
+          <div className="w-full sm:w-48">
             <Select
               options={[
                 { value: 'all', label: 'Todas as Unidades' },
@@ -305,7 +306,7 @@ export const AdminUsersPage: React.FC = () => {
             />
           </div>
 
-          <div className="w-40">
+          <div className="w-full sm:w-40">
             <Select
               options={[
                 { value: 'all', label: 'Todos os Perfis' },
@@ -353,7 +354,7 @@ export const AdminUsersPage: React.FC = () => {
 
         {/* Users Table */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <table className="w-full text-left text-xs text-slate-700">
+          <Table className="min-w-[1100px] text-left text-xs text-slate-700">
             <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="py-3 px-4 w-10">
@@ -469,7 +470,7 @@ export const AdminUsersPage: React.FC = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
 
           <div className="p-4 border-t border-slate-100">
             <Pagination

@@ -4,6 +4,7 @@ import { AuditLog, AccessLog } from '../../../types';
 import { AdminShell } from '../../../components/layout/AdminShell';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
+import { Table } from '../../../components/ui/table';
 import { formatDateToSaoPaulo } from '../../../utils/formatters';
 import { ShieldAlert, KeyRound, Clock, UserCheck, ShieldCheck, RefreshCw } from 'lucide-react';
 
@@ -51,7 +52,7 @@ export const AdminAuditPage: React.FC = () => {
     >
       <div className="space-y-6">
         {/* Tab switch */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <div className="flex max-w-full items-center gap-2 overflow-x-auto border-b border-slate-200 pb-3 custom-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('audit')}
@@ -78,8 +79,8 @@ export const AdminAuditPage: React.FC = () => {
 
         {activeTab === 'audit' ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="w-64">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="w-full sm:w-64">
                 <Select
                   options={[
                     { value: 'all', label: 'Todas as Ações' },
@@ -100,7 +101,7 @@ export const AdminAuditPage: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-              <table className="w-full text-left text-xs text-slate-700">
+              <Table className="min-w-[900px] text-left text-xs text-slate-700">
                 <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Data / Hora (SP)</th>
@@ -133,12 +134,12 @@ export const AdminAuditPage: React.FC = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-            <table className="w-full text-left text-xs text-slate-700">
+            <Table className="min-w-[720px] text-left text-xs text-slate-700">
               <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Data / Hora (SP)</th>
@@ -169,7 +170,7 @@ export const AdminAuditPage: React.FC = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </div>

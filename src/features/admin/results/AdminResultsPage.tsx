@@ -13,6 +13,7 @@ import { TextField } from '../../../components/ui/TextField';
 import { Select } from '../../../components/ui/Select';
 import { Drawer } from '../../../components/ui/Drawer';
 import { Pagination } from '../../../components/ui/Pagination';
+import { Table } from '../../../components/ui/table';
 import { exportToCsv, copyTableToClipboard } from '../../../services/exports/csv-exporter';
 import { exportMultiSheetExcel, exportToExcel } from '../../../services/exports/excel-exporter';
 import { SendEmailReportModal } from './SendEmailReportModal';
@@ -468,7 +469,7 @@ export const AdminResultsPage: React.FC = () => {
         {/* Filters and View Controls Bar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-[220px]">
+            <div className="w-full min-w-0 sm:flex-1">
               <TextField
                 placeholder="Buscar por colaborador, matrícula ou email..."
                 value={search}
@@ -480,7 +481,7 @@ export const AdminResultsPage: React.FC = () => {
               />
             </div>
 
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Select
                 options={[
                   { value: 'all', label: 'Todos os Status' },
@@ -495,7 +496,7 @@ export const AdminResultsPage: React.FC = () => {
               />
             </div>
 
-            <div className="w-44">
+            <div className="w-full sm:w-44">
               <Select
                 options={[
                   { value: 'all', label: 'Todas as Unidades' },
@@ -509,7 +510,7 @@ export const AdminResultsPage: React.FC = () => {
               />
             </div>
 
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Select
                 options={[
                   { value: 'all', label: 'Qualquer Sessão' },
@@ -524,7 +525,7 @@ export const AdminResultsPage: React.FC = () => {
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <div className="flex w-full items-center rounded-lg border border-slate-200 bg-slate-100 p-1 sm:w-auto">
               <button
                 type="button"
                 onClick={() => setViewMode('compact')}
@@ -589,8 +590,7 @@ export const AdminResultsPage: React.FC = () => {
 
         {/* Matrix Table with Sticky Columns and 2 Header Rows */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left text-xs border-collapse">
+            <Table className="min-w-max text-left text-xs border-collapse">
               {/* Header Row 1: Fixed Columns + Group by Date */}
               <thead>
                 <tr className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider border-b border-slate-600">
@@ -1067,8 +1067,7 @@ export const AdminResultsPage: React.FC = () => {
                   })
                 )}
               </tbody>
-            </table>
-          </div>
+            </Table>
 
           <div className="p-4 border-t border-slate-100">
             <Pagination

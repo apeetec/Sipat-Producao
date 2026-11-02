@@ -189,6 +189,25 @@ integration("API integrada com MariaDB", () => {
         });
         expect(duplicateEvent.status).toBe(409);
 
+        const secondEventResponse = await asAdmin(
+          request(app).post("/api/admin/events"),
+        ).send({
+          eventDateId,
+          name: `Segundo evento integração ${suffix}`,
+          slug: `segundo-evento-it-${suffix}`,
+          dateLabel: "Teste integrado",
+          opensAt,
+          closesAt,
+          attendanceCode,
+          speakers: [],
+          unitVideoOverrides: {},
+          active: true,
+          countsForFullWeek: false,
+          sortOrder: 2,
+        });
+        expect(secondEventResponse.status).toBe(201);
+        const secondEventId = secondEventResponse.body.id as string;
+
         const questionResponse = await asAdmin(
           request(app).post("/api/admin/questions"),
         ).send({
@@ -416,6 +435,17 @@ integration("API integrada com MariaDB", () => {
         expect(Boolean(persisted[0]?.perfect_score)).toBe(true);
         expect(persisted[0]?.attendance_validated_at).toBeInstanceOf(Date);
 
+        const deactivatedParticipant = await asAdmin(
+          request(app).patch(`/api/admin/users/${participantId}`),
+        ).send({ active: false });
+        expect(deactivatedParticipant.status).toBe(200);
+
+        const listedUnits = await asAdmin(request(app).get("/api/admin/units"));
+        expect(listedUnits.status).toBe(200);
+        expect(
+          listedUnits.body.find((unit: { id: string }) => unit.id === unitId),
+        ).toMatchObject({ id: unitId, userCount: 1 });
+
         const deletedUsers = await asAdmin(
           request(app).post("/api/admin/users/bulk-delete"),
         ).send({ userIds: [participantId] });
@@ -426,6 +456,33 @@ integration("API integrada com MariaDB", () => {
           request(app).get(`/api/admin/users/${participantId}`),
         );
         expect(deletedUser.status).toBe(404);
+
+        const deletedEvents = await asAdmin(
+          request(app).post("/api/admin/events/bulk-delete"),
+        ).send({ eventIds: [eventId, secondEventId] });
+        expect(deletedEvents.status).toBe(200);
+        expect(deletedEvents.body).toEqual({ affectedEvents: 2 });
+
+        const deletedEvent = await asAdmin(
+          request(app).get(`/api/admin/events/${eventId}`),
+        );
+        expect(deletedEvent.status).toBe(404);
+
+        const repeatedDelete = await asAdmin(
+          request(app).delete(`/api/admin/events/${eventId}`),
+        );
+        expect(repeatedDelete.status).toBe(404);
+
+        const finalAudit = await asAdmin(
+          request(app).get("/api/admin/audit").query({ limit: 100 }),
+        );
+        expect(finalAudit.status).toBe(200);
+        expect(
+          finalAudit.body.some(
+            (entry: { action: string }) =>
+              entry.action === "BULK_DELETE_EVENTS",
+          ),
+        ).toBe(true);
       } finally {
         await pool.end();
       }

@@ -135,6 +135,12 @@ export const selectedUsers = z
   })
   .strict();
 
+export const selectedEvents = z
+  .object({
+    eventIds: z.array(z.string().uuid()).min(1).max(500),
+  })
+  .strict();
+
 export const resetUserParticipations = selectedUsers.extend({
   eventDayId: z.string().uuid().optional(),
 });

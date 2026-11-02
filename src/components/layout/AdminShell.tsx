@@ -14,7 +14,7 @@ export const AdminShell: React.FC<{
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="h-screen w-full flex overflow-hidden bg-slate-50 text-slate-800 antialiased">
+    <div className="h-dvh w-full flex overflow-hidden bg-slate-50 text-slate-800 antialiased">
       {/* Desktop Sidebar: Locked to 100% viewport height, flex column with internal scroll */}
       <div className="hidden lg:flex lg:flex-col lg:h-full lg:w-64 shrink-0 bg-[#015237] border-r border-[#014730] z-20">
         <AdminSidebar />
@@ -94,7 +94,7 @@ export const AdminShell: React.FC<{
         )}
 
         {/* Dynamic content scrollable area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] custom-scrollbar sm:p-6 lg:p-8">
           {children}
         </main>
       </div>

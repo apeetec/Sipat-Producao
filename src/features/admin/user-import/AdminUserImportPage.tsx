@@ -3,6 +3,7 @@ import { AdminShell } from '../../../components/layout/AdminShell';
 import { Button } from '../../../components/ui/Button';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { Alert } from '../../../components/ui/Alert';
+import { Table } from '../../../components/ui/table';
 import { toast } from '../../../components/feedback/ToastContainer';
 import { parseUserImportCsv, UserImportRow, EXPECTED_IMPORT_COLUMNS, COLUMN_LABELS_PT } from '../../../utils/csv-parser';
 import { exportToCsv } from '../../../services/exports/csv-exporter';
@@ -497,7 +498,7 @@ export const AdminUserImportPage: React.FC = () => {
         {/* Result summary cards if completed */}
         {importSummary && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900 font-display">Relatório da Importação</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -537,15 +538,14 @@ export const AdminUserImportPage: React.FC = () => {
 
         {/* Editable Grid */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <div className="p-3 bg-slate-50 border-b border-slate-200 text-[11px] text-slate-500 flex items-center justify-between">
+          <div className="flex flex-col gap-1 border-b border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               💡 <strong>Dica de Produtividade:</strong> Você pode copiar blocos de células no Excel ou Google Planilhas e colar diretamente em qualquer célula da grade.
             </span>
             <span className="font-mono">12 Colunas Oficiais</span>
           </div>
 
-          <div className="overflow-x-auto custom-scrollbar max-h-[500px]">
-            <table className="w-full text-left text-xs border-collapse">
+            <Table containerClassName="max-h-[500px]" className="min-w-[1500px] text-left text-xs border-collapse">
               <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider sticky top-0 z-10">
                 <tr>
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
@@ -634,8 +634,7 @@ export const AdminUserImportPage: React.FC = () => {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+            </Table>
         </div>
       </div>
     </AdminShell>

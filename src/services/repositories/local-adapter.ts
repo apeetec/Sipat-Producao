@@ -382,10 +382,13 @@ export class LocalUnitRepository implements IUnitRepository {
 
   async list(): Promise<Unit[]> {
     const units = getItem<Unit[]>(STORAGE_KEYS.UNITS, []);
-    return units.sort((a, b) => a.sortOrder - b.sortOrder);
+    const users = getItem<AppUser[]>(STORAGE_KEYS.USERS, []);
+    return units
+      .map(unit => ({ ...unit, userCount: users.filter(user => user.unitId === unit.id).length }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
-  async create(unitData: Omit<Unit, 'id' | 'createdAt' | 'updatedAt'>): Promise<Unit> {
+  async create(unitData: Omit<Unit, 'id' | 'createdAt' | 'updatedAt' | 'userCount'>): Promise<Unit> {
     const units = getItem<Unit[]>(STORAGE_KEYS.UNITS, []);
     const id = `unit-${Date.now()}`;
     const now = new Date().toISOString();
@@ -418,6 +421,7 @@ export class LocalUnitRepository implements IUnitRepository {
     const units = getItem<Unit[]>(STORAGE_KEYS.UNITS, []);
     setItem(STORAGE_KEYS.UNITS, units.filter(u => u.id !== id));
   }
+
 }
 
 export class LocalEventDateRepository implements IEventDateRepository {
@@ -505,6 +509,14 @@ export class LocalEventRepository implements IEventRepository {
   async delete(id: string): Promise<void> {
     const days = getItem<EventDay[]>(STORAGE_KEYS.EVENTS, []);
     setItem(STORAGE_KEYS.EVENTS, days.filter(d => d.id !== id));
+  }
+
+  async deleteMany(eventIds: string[]): Promise<{ affectedEvents: number }> {
+    const selected = new Set(eventIds);
+    const days = getItem<EventDay[]>(STORAGE_KEYS.EVENTS, []);
+    const remaining = days.filter(day => !selected.has(day.id));
+    setItem(STORAGE_KEYS.EVENTS, remaining);
+    return { affectedEvents: days.length - remaining.length };
   }
 }
 

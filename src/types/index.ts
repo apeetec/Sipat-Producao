@@ -28,6 +28,8 @@ export interface Unit {
   slug: string;
   active: boolean;
   sortOrder: number;
+  /** Quantidade de usuários não excluídos vinculados, calculada pela API. */
+  userCount?: number;
   createdAt: string;
   updatedAt: string;
 }

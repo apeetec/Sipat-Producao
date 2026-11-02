@@ -66,7 +66,7 @@ export const Modal: React.FC<ModalProps> = ({
         )}
       >
         {(title || description) && (
-          <div className="flex items-start justify-between p-6 border-b border-slate-100 shrink-0 bg-slate-50/50">
+          <div className="flex items-start justify-between border-b border-slate-100 bg-slate-50/50 p-4 shrink-0 sm:p-6">
             <div>
               {title && <h2 className="text-lg font-bold text-slate-900 font-display tracking-tight">{title}</h2>}
               {description && <p className="text-xs text-slate-500 mt-1">{description}</p>}
@@ -81,7 +81,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         )}
 
-        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar sm:p-6">{children}</div>
       </div>
     </div>
   );

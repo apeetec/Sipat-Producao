@@ -32,7 +32,7 @@ src/
     providers/         # AuthProvider e ToastContainer
     guards/            # ProtectedRoute, AdminRoute, FirstAccessRoute
   components/
-    ui/                # Button, TextField, PasswordField, Card, Modal, Drawer, Tabs, etc.
+    ui/                # Base shadcn/Radix: tabelas, calendários, data/hora, diálogos e formulários
     layout/            # AppShell, AuthenticatedHeader, CampaignBanner, AdminShell, AdminSidebar
     feedback/          # ToastContainer, Toast singleton
   features/
@@ -66,6 +66,11 @@ src/
 backend/               # API Express/TypeScript em camadas, Swagger, PM2 e deploy
 database/              # DDL MySQL/MariaDB normalizado
 ```
+
+A configuração shadcn está em `components.json`. Os seletores de data preservam
+`YYYY-MM-DD`, os seletores de data/hora convertem explicitamente de
+`America/Sao_Paulo` para ISO, e todas as tabelas administrativas usam um contêiner
+responsivo com rolagem horizontal em telas estreitas.
 
 ---
 

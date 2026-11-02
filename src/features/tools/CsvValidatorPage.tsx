@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { AdminShell } from '../../components/layout/AdminShell';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Alert';
+import { Table } from '../../components/ui/table';
 import { parseUserImportCsv, CsvValidationResult } from '../../utils/csv-parser';
 import { exportToCsv } from '../../services/exports/csv-exporter';
 import {
@@ -169,7 +170,7 @@ export const CsvValidatorPage: React.FC = () => {
 
             {/* Rows details */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-              <table className="w-full text-left text-xs text-slate-700">
+              <Table className="min-w-[720px] text-left text-xs text-slate-700">
                 <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
                   <tr>
                     <th className="py-2.5 px-3 w-14 text-center">Linha</th>
@@ -219,7 +220,7 @@ export const CsvValidatorPage: React.FC = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           </div>
         )}

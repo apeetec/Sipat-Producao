@@ -3,6 +3,7 @@ import {
   groupSessionsByDate,
   makeUniqueSessionSlug,
   slugifySessionName,
+  toDateTimeLocalValue,
 } from '../../src/utils/event-sessions';
 import type { EventDay } from '../../src/types';
 
@@ -101,5 +102,11 @@ describe('slug de sessões', () => {
         '2026-11-04T17:30:00.000Z',
       ),
     ).toMatch(/^sessao-de-abertura-\d{4}$/);
+  });
+});
+
+describe('horário administrativo', () => {
+  it('sempre apresenta o instante no fuso de São Paulo', () => {
+    expect(toDateTimeLocalValue('2026-11-04T15:30:00.000Z')).toBe('2026-11-04T12:30');
   });
 });

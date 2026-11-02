@@ -29,7 +29,7 @@ export interface IUnitRepository {
   getById(id: string): Promise<Unit | null>;
   getBySlug(slug: string): Promise<Unit | null>;
   list(): Promise<Unit[]>;
-  create(unit: Omit<Unit, 'id' | 'createdAt' | 'updatedAt'>): Promise<Unit>;
+  create(unit: Omit<Unit, 'id' | 'createdAt' | 'updatedAt' | 'userCount'>): Promise<Unit>;
   update(id: string, updates: Partial<Unit>): Promise<Unit>;
   delete(id: string): Promise<void>;
 }
@@ -41,6 +41,7 @@ export interface IEventRepository {
   create(day: Omit<EventDay, 'id' | 'createdAt' | 'updatedAt'> & { attendanceCode?: string }): Promise<EventDay>;
   update(id: string, updates: Partial<EventDay> & { attendanceCode?: string }): Promise<EventDay>;
   delete(id: string): Promise<void>;
+  deleteMany(eventIds: string[]): Promise<{ affectedEvents: number }>;
 }
 
 export interface IEventDateRepository {

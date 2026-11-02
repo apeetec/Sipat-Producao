@@ -83,7 +83,9 @@ export const adminController = {
   listUnits: async (req: Request, res: Response) =>
     res.json(await adminRepository.listUnits(req.auth!.organizationId)),
   getUnit: async (req: Request, res: Response) =>
-    res.json(await adminRepository.getUnit(idOf(req))),
+    res.json(
+      await adminRepository.getUnit(idOf(req), req.auth!.organizationId),
+    ),
   createUnit: async (req: Request, res: Response) => {
     const item = await adminRepository.createUnit(
       req.auth!.organizationId,
@@ -93,13 +95,17 @@ export const adminController = {
     res.status(201).json(item);
   },
   updateUnit: async (req: Request, res: Response) => {
-    const item = await adminRepository.updateUnit(idOf(req), req.body);
+    const item = await adminRepository.updateUnit(
+      idOf(req),
+      req.auth!.organizationId,
+      req.body,
+    );
     await audited(req, "UPDATE_UNIT", "units", item.id, item);
     res.json(item);
   },
   deleteUnit: async (req: Request, res: Response) => {
     const id = idOf(req);
-    await adminRepository.deleteUnit(id);
+    await adminRepository.deleteUnit(id, req.auth!.organizationId);
     await audited(req, "DELETE_UNIT", "units", id);
     res.status(204).send();
   },
@@ -160,9 +166,21 @@ export const adminController = {
   },
   deleteEvent: async (req: Request, res: Response) => {
     const id = idOf(req);
-    await adminRepository.deleteEvent(id);
+    await adminRepository.deleteEvent(id, req.auth!.campaignId);
     await audited(req, "DELETE_EVENT", "event_days", id);
     res.status(204).send();
+  },
+  deleteEvents: async (req: Request, res: Response) => {
+    const eventIds = [...new Set(req.body.eventIds as string[])];
+    const result = await adminRepository.deleteEvents(
+      eventIds,
+      req.auth!.campaignId,
+    );
+    await audited(req, "BULK_DELETE_EVENTS", "event_days", "batch", {
+      eventIds,
+      ...result,
+    });
+    res.json(result);
   },
   listQuestions: async (req: Request, res: Response) =>
     res.json(

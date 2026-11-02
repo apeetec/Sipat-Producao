@@ -24,6 +24,7 @@ import {
   userUpdate,
   selectedUsers,
   resetUserParticipations,
+  selectedEvents,
 } from "./admin.schemas.js";
 import { auditRepository } from "../audit/audit.repository.js";
 
@@ -124,6 +125,12 @@ protectedRouter.post(
   "/events",
   validate({ body: eventCreate }),
   asyncHandler(c.createEvent),
+);
+protectedRouter.post(
+  "/events/bulk-delete",
+  adminBatchLimiter,
+  validate({ body: selectedEvents }),
+  asyncHandler(c.deleteEvents),
 );
 protectedRouter.get(
   "/events/:id",

@@ -45,10 +45,24 @@ const operation = (
     parameters: options.parameters,
     responses: {
       ...(options.created
-        ? { "201": created }
+        ? {
+            "201": options.response
+              ? {
+                  description: "Registro criado.",
+                  content: { "application/json": { schema: options.response } },
+                }
+              : created,
+          }
         : options.noContent
           ? { "204": noContent }
-          : { "200": ok }),
+          : {
+              "200": options.response
+                ? {
+                    description: "Operação concluída.",
+                    content: { "application/json": { schema: options.response } },
+                  }
+                : ok,
+            }),
       ...commonErrors,
     },
   },
@@ -60,6 +74,19 @@ const selectedUsersBody = {
   required: ["userIds"],
   properties: {
     userIds: {
+      type: "array",
+      minItems: 1,
+      maxItems: 500,
+      items: { type: "string", format: "uuid" },
+    },
+  },
+};
+const selectedEventsBody = {
+  type: "object",
+  additionalProperties: false,
+  required: ["eventIds"],
+  properties: {
+    eventIds: {
       type: "array",
       minItems: 1,
       maxItems: 500,
@@ -110,6 +137,49 @@ export const openapi = {
           mimeType: { type: "string", example: "image/png" },
           size: { type: "integer", example: 2048 },
           originalName: { type: "string", example: "logo.png" },
+        },
+      },
+      UnitInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "slug"],
+        properties: {
+          name: { type: "string", maxLength: 150 },
+          slug: {
+            type: "string",
+            maxLength: 150,
+            pattern: "^[a-z0-9-]+$",
+          },
+          active: { type: "boolean", default: true },
+          sortOrder: { type: "integer", minimum: 0, default: 0 },
+        },
+      },
+      Unit: {
+        allOf: [
+          { $ref: "#/components/schemas/UnitInput" },
+          {
+            type: "object",
+            required: ["id", "userCount", "createdAt", "updatedAt"],
+            properties: {
+              id: { type: "string", format: "uuid" },
+              userCount: {
+                type: "integer",
+                minimum: 0,
+                description:
+                  "Usuários ativos e inativos vinculados, desconsiderando somente exclusões lógicas.",
+              },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
+      BulkDeleteEventsResult: {
+        type: "object",
+        additionalProperties: false,
+        required: ["affectedEvents"],
+        properties: {
+          affectedEvents: { type: "integer", minimum: 1, maximum: 500 },
         },
       },
       EventDateInput: {
@@ -332,10 +402,17 @@ export const openapi = {
       }),
     },
     "/admin/units": {
-      ...operation("Listar unidades", "get", { tag: "Admin — Unidades" }),
+      ...operation("Listar unidades", "get", {
+        tag: "Admin — Unidades",
+        response: {
+          type: "array",
+          items: { $ref: "#/components/schemas/Unit" },
+        },
+      }),
       ...operation("Criar unidade", "post", {
         tag: "Admin — Unidades",
-        body,
+        body: { $ref: "#/components/schemas/UnitInput" },
+        response: { $ref: "#/components/schemas/Unit" },
         created: true,
       }),
     },
@@ -343,6 +420,7 @@ export const openapi = {
       ...operation("Consultar unidade", "get", {
         tag: "Admin — Unidades",
         parameters: id,
+        response: { $ref: "#/components/schemas/Unit" },
       }),
       ...operation("Atualizar unidade", "patch", {
         tag: "Admin — Unidades",
@@ -361,6 +439,13 @@ export const openapi = {
         tag: "Admin — Eventos",
         body,
         created: true,
+      }),
+    },
+    "/admin/events/bulk-delete": {
+      ...operation("Excluir logicamente os eventos selecionados", "post", {
+        tag: "Admin — Eventos",
+        body: selectedEventsBody,
+        response: { $ref: "#/components/schemas/BulkDeleteEventsResult" },
       }),
     },
     "/admin/event-dates": {

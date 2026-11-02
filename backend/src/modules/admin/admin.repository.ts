@@ -13,13 +13,29 @@ const bool = (value: unknown) => (value ? 1 : 0);
 const iso = (value: Date | string | null) =>
   value ? new Date(value).toISOString() : undefined;
 
-function mapUnit(row: RowDataPacket) {
+type UnitRow = RowDataPacket & {
+  user_count?: number | string;
+};
+
+export type AdminUnit = {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  sortOrder: number;
+  userCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function mapUnit(row: UnitRow): AdminUnit {
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
     active: Boolean(row.active),
     sortOrder: row.sort_order,
+    userCount: Number(row.user_count ?? 0),
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
   };
@@ -343,16 +359,27 @@ export class AdminRepository {
 
   async listUnits(organizationId: string) {
     return (
-      await rows<RowDataPacket[]>(
-        "SELECT * FROM units WHERE organization_id=? AND deleted_at IS NULL ORDER BY sort_order,name",
+      await rows<UnitRow[]>(
+        `SELECT un.*,
+          (SELECT COUNT(*) FROM users u
+           WHERE u.unit_id=un.id AND u.organization_id=un.organization_id
+             AND u.deleted_at IS NULL) AS user_count
+         FROM units un
+         WHERE un.organization_id=? AND un.deleted_at IS NULL
+         ORDER BY un.sort_order,un.name`,
         [organizationId],
       )
     ).map(mapUnit);
   }
-  async getUnit(id: string) {
-    const r = await rows<RowDataPacket[]>(
-      "SELECT * FROM units WHERE id=? AND deleted_at IS NULL",
-      [id],
+  async getUnit(id: string, organizationId: string) {
+    const r = await rows<UnitRow[]>(
+      `SELECT un.*,
+        (SELECT COUNT(*) FROM users u
+         WHERE u.unit_id=un.id AND u.organization_id=un.organization_id
+           AND u.deleted_at IS NULL) AS user_count
+       FROM units un
+       WHERE un.id=? AND un.organization_id=? AND un.deleted_at IS NULL`,
+      [id, organizationId],
     );
     if (!r[0]) throw notFound("Unidade");
     return mapUnit(r[0]);
@@ -363,9 +390,9 @@ export class AdminRepository {
       "INSERT INTO units(id,organization_id,name,slug,active,sort_order) VALUES(?,?,?,?,?,?)",
       [id, organizationId, d.name, d.slug, bool(d.active), d.sortOrder],
     );
-    return this.getUnit(id);
+    return this.getUnit(id, organizationId);
   }
-  async updateUnit(id: string, d: any) {
+  async updateUnit(id: string, organizationId: string, d: any) {
     const map: any = {
       name: "name",
       slug: "slug",
@@ -380,26 +407,29 @@ export class AdminRepository {
         v.push(k === "active" ? bool(d[k]) : d[k]);
       }
     if (s.length) {
-      v.push(id);
+      v.push(id, organizationId);
       const r = await execute(
-        `UPDATE units SET ${s.join(",")} WHERE id=? AND deleted_at IS NULL`,
+        `UPDATE units SET ${s.join(",")} WHERE id=? AND organization_id=? AND deleted_at IS NULL`,
         v,
       );
       if (!r.affectedRows) throw notFound("Unidade");
     }
-    return this.getUnit(id);
+    return this.getUnit(id, organizationId);
   }
-  async deleteUnit(id: string) {
+  async deleteUnit(id: string, organizationId: string) {
     const users = await rows<(RowDataPacket & { count: number })[]>(
-      "SELECT COUNT(*) count FROM users WHERE unit_id=? AND active=1 AND deleted_at IS NULL",
-      [id],
+      `SELECT COUNT(*) count FROM users
+       WHERE unit_id=? AND organization_id=? AND deleted_at IS NULL`,
+      [id, organizationId],
     );
     if ((users[0]?.count ?? 0) > 0)
-      throw conflict("A unidade possui colaboradores ativos.");
-    await execute(
-      "UPDATE units SET active=0,deleted_at=UTC_TIMESTAMP(3) WHERE id=?",
-      [id],
+      throw conflict("A unidade possui usuários vinculados.");
+    const result = await execute(
+      `UPDATE units SET active=0,deleted_at=UTC_TIMESTAMP(3)
+       WHERE id=? AND organization_id=? AND deleted_at IS NULL`,
+      [id, organizationId],
     );
+    if (!result.affectedRows) throw notFound("Unidade");
   }
 
   async listEventDates(campaignId: string) {
@@ -709,11 +739,37 @@ export class AdminRepository {
       return eventId;
     });
   }
-  async deleteEvent(id: string) {
-    await execute(
-      "UPDATE event_days SET active=0,deleted_at=UTC_TIMESTAMP(3) WHERE id=?",
-      [id],
+  async deleteEvent(id: string, campaignId: string) {
+    const result = await execute(
+      `UPDATE event_days SET active=0,deleted_at=UTC_TIMESTAMP(3)
+       WHERE id=? AND campaign_id=? AND deleted_at IS NULL`,
+      [id, campaignId],
     );
+    if (!result.affectedRows) throw notFound("Evento");
+  }
+
+  async deleteEvents(eventIds: string[], campaignId: string) {
+    const ids = [...new Set(eventIds)];
+    return transaction(async (db) => {
+      const marks = ids.map(() => "?").join(",");
+      const selected = await rows<RowDataPacket[]>(
+        `SELECT id FROM event_days
+         WHERE campaign_id=? AND id IN (${marks}) AND deleted_at IS NULL
+         FOR UPDATE`,
+        [campaignId, ...ids],
+        db,
+      );
+      if (selected.length !== ids.length)
+        throw notFound("Um ou mais eventos");
+
+      const result = await execute(
+        `UPDATE event_days SET active=0,deleted_at=UTC_TIMESTAMP(3)
+         WHERE campaign_id=? AND id IN (${marks}) AND deleted_at IS NULL`,
+        [campaignId, ...ids],
+        db,
+      );
+      return { affectedEvents: result.affectedRows };
+    });
   }
 
   async listQuestions(eventDayId?: string, includeAnswers = true) {

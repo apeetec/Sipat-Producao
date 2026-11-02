@@ -9,6 +9,7 @@ import { Button } from '../../../components/ui/Button';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { Modal } from '../../../components/ui/Modal';
 import { TextField } from '../../../components/ui/TextField';
+import { DatePicker } from '../../../components/ui/date-picker';
 import { toast } from '../../../components/feedback/ToastContainer';
 
 const labelsForDate = (value: string) => {
@@ -150,7 +151,7 @@ export const AdminEventDatesPage: React.FC = () => {
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editing ? 'Editar Data' : 'Criar Data da Programação'} maxWidth="lg">
         <form onSubmit={save} className="space-y-4">
           {error && <Alert variant="danger">{error}</Alert>}
-          <TextField label="Data" type="date" value={eventDate} onChange={event => changeDate(event.target.value)} required />
+          <DatePicker label="Data" value={eventDate} onChange={changeDate} required />
           <TextField label="Nome da categoria" placeholder="Ex: Segunda-feira" value={name} onChange={event => setName(event.target.value)} required />
           <TextField label="Rótulo exibido" placeholder="Ex: 9 de novembro de 2026" value={dateLabel} onChange={event => setDateLabel(event.target.value)} required />
           <TextField label="Descrição (opcional)" value={description} onChange={event => setDescription(event.target.value)} />

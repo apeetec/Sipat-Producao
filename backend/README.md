@@ -83,6 +83,8 @@ Execute `npm run dev` na raiz em outro terminal. O Swagger fica em `http://local
 - `/api/events/*`: dias, contexto do participante, presença, progresso e submissão.
 - `/api/winners`: galeria pública com matrícula mascarada conforme configuração.
 - `/api/admin/users|units|event-dates|events|questions`: gestão administrativa. `event-dates` mantém as categorias de data e cada evento/sessão referencia uma delas por `eventDateId`.
+- `GET /api/admin/units` inclui `userCount`, calculado no banco para usuários ativos e inativos ainda vinculados.
+- `POST /api/admin/events/bulk-delete` exclui logicamente de 1 a 500 sessões da campanha autenticada e registra auditoria.
 - `/api/admin/participations`: resultados e respostas para relatórios.
 - `/api/admin/draws/*`: prévia, execução, histórico e anulação.
 - `/api/admin/settings|regulations|audit`: campanha, conteúdo e compliance.

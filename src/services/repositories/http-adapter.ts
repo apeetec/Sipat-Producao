@@ -47,7 +47,7 @@ export class HttpUnitRepository implements IUnitRepository {
   getById(id: string) { return request<Unit>(`/api/admin/units/${id}`).catch(() => null); }
   async getBySlug(slug: string) { return (await this.list()).find(u => u.slug === slug) ?? null; }
   list() { return request<Unit[]>('/api/admin/units'); }
-  create(unit: Omit<Unit, 'id' | 'createdAt' | 'updatedAt'>) { return request<Unit>('/api/admin/units', { method: 'POST', body: JSON.stringify(unit) }); }
+  create(unit: Omit<Unit, 'id' | 'createdAt' | 'updatedAt' | 'userCount'>) { return request<Unit>('/api/admin/units', { method: 'POST', body: JSON.stringify(unit) }); }
   update(id: string, updates: Partial<Unit>) { return request<Unit>(`/api/admin/units/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }); }
   async delete(id: string) { await request<void>(`/api/admin/units/${id}`, { method: 'DELETE' }); }
 }
@@ -63,6 +63,12 @@ export class HttpEventRepository implements IEventRepository {
   create(day: Omit<EventDay, 'id' | 'createdAt' | 'updatedAt'> & { attendanceCode?: string }) { return request<EventDay>('/api/admin/events', { method: 'POST', body: JSON.stringify(this.payload(day)) }); }
   update(id: string, updates: Partial<EventDay> & { attendanceCode?: string }) { return request<EventDay>(`/api/admin/events/${id}`, { method: 'PATCH', body: JSON.stringify(this.payload(updates)) }); }
   async delete(id: string) { await request<void>(`/api/admin/events/${id}`, { method: 'DELETE' }); }
+  deleteMany(eventIds: string[]) {
+    return request<{ affectedEvents: number }>('/api/admin/events/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ eventIds }),
+    });
+  }
 }
 
 export class HttpEventDateRepository implements IEventDateRepository {

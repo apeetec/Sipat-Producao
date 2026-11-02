@@ -1,4 +1,5 @@
 import { EventDay } from '../types';
+import { formatInTimeZone } from 'date-fns-tz';
 
 export interface EventDateGroup {
   key: string;
@@ -98,7 +99,5 @@ export const makeUniqueSessionSlug = (
 
 /** Converts an ISO timestamp into the value expected by datetime-local. */
 export const toDateTimeLocalValue = (isoValue: string): string => {
-  const date = new Date(isoValue);
-  const localTime = date.getTime() - date.getTimezoneOffset() * 60_000;
-  return new Date(localTime).toISOString().slice(0, 16);
+  return formatInTimeZone(new Date(isoValue), DEFAULT_TIMEZONE, "yyyy-MM-dd'T'HH:mm");
 };

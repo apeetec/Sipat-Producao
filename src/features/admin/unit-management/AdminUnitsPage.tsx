@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { unitRepository, userRepository } from '../../../services/repositories';
+import { unitRepository } from '../../../services/repositories';
 import { Unit } from '../../../types';
 import { AdminShell } from '../../../components/layout/AdminShell';
 import { Button } from '../../../components/ui/Button';
@@ -7,6 +7,7 @@ import { TextField } from '../../../components/ui/TextField';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { Modal } from '../../../components/ui/Modal';
 import { Alert } from '../../../components/ui/Alert';
+import { Table } from '../../../components/ui/table';
 import { toast } from '../../../components/feedback/ToastContainer';
 import { Building2, Plus, Edit2, Trash2, Users } from 'lucide-react';
 
@@ -24,7 +25,6 @@ function slugify(text: string): string {
 
 export const AdminUnitsPage: React.FC = () => {
   const [units, setUnits] = useState<Unit[]>([]);
-  const [userCounts, setUserCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,19 +39,8 @@ export const AdminUnitsPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [allUnits, allUsers] = await Promise.all([
-        unitRepository.list(),
-        userRepository.list(),
-      ]);
+      const allUnits = await unitRepository.list();
       setUnits(allUnits);
-
-      const counts: Record<string, number> = {};
-      allUsers.forEach(u => {
-        if (u.unitId) {
-          counts[u.unitId] = (counts[u.unitId] || 0) + 1;
-        }
-      });
-      setUserCounts(counts);
     } catch (err) {
       console.error(err);
     } finally {
@@ -134,7 +123,7 @@ export const AdminUnitsPage: React.FC = () => {
   };
 
   const handleDelete = async (u: Unit) => {
-    const count = userCounts[u.id] || 0;
+    const count = u.userCount || 0;
     if (count > 0) {
       toast.error(`Esta unidade possui ${count} colaboradores vinculados e não pode ser excluída.`);
       return;
@@ -158,13 +147,13 @@ export const AdminUnitsPage: React.FC = () => {
     >
       <div className="space-y-6">
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <table className="w-full text-left text-xs text-slate-700">
+          <Table className="min-w-[780px] text-left text-xs text-slate-700">
             <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="py-3 px-4">Ordem</th>
                 <th className="py-3 px-4">Nome da Unidade</th>
                 <th className="py-3 px-4">Slug Identificador</th>
-                <th className="py-3 px-4">Colaboradores Vinculados</th>
+                <th className="py-3 px-4">Usuários Vinculados</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Ações</th>
               </tr>
@@ -178,7 +167,7 @@ export const AdminUnitsPage: React.FC = () => {
                   <td className="py-3 px-4">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px]">
                       <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{userCounts[unit.id] || 0}</span>
+                      <span className="tabular-nums">{unit.userCount || 0}</span>
                     </span>
                   </td>
                   <td className="py-3 px-4">
@@ -209,7 +198,7 @@ export const AdminUnitsPage: React.FC = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
       </div>
 

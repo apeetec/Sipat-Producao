@@ -21,7 +21,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   if (totalPages <= 1) return null;
 
   return (
-    <div className={`flex items-center justify-between gap-4 py-3 text-xs text-slate-600 ${className}`}>
+    <div className={`flex flex-col items-start justify-between gap-3 py-3 text-xs text-slate-600 sm:flex-row sm:items-center ${className}`}>
       {totalItems !== undefined && pageSize !== undefined ? (
         <span>
           Mostrando {Math.min((currentPage - 1) * pageSize + 1, totalItems)} a{' '}

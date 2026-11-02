@@ -8,6 +8,7 @@ import { Select } from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { Modal } from '../../../components/ui/Modal';
 import { Alert } from '../../../components/ui/Alert';
+import { Table } from '../../../components/ui/table';
 import { toast } from '../../../components/feedback/ToastContainer';
 import {
   HelpCircle,
@@ -235,7 +236,7 @@ export const AdminQuestionsPage: React.FC = () => {
 
         {/* Filter bar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-3">
-          <div className="w-48">
+          <div className="w-full sm:w-48">
             <Select
               options={[
                 { value: 'all', label: 'Todos os Dias' },
@@ -246,7 +247,7 @@ export const AdminQuestionsPage: React.FC = () => {
             />
           </div>
 
-          <div className="w-44">
+          <div className="w-full sm:w-44">
             <Select
               options={[
                 { value: 'all', label: 'Todos os Tipos' },
@@ -259,7 +260,7 @@ export const AdminQuestionsPage: React.FC = () => {
             />
           </div>
 
-          <div className="w-44">
+          <div className="w-full sm:w-44">
             <Select
               options={[
                 { value: 'all', label: 'Todas as Finalidades' },
@@ -271,14 +272,14 @@ export const AdminQuestionsPage: React.FC = () => {
             />
           </div>
 
-          <span className="text-xs text-slate-500 ml-auto">
+          <span className="w-full text-xs text-slate-500 sm:ml-auto sm:w-auto">
             {filteredQuestions.length} de {questions.length} perguntas
           </span>
         </div>
 
         {/* Questions Table */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <table className="w-full text-left text-xs text-slate-700">
+          <Table className="min-w-[1000px] text-left text-xs text-slate-700">
             <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="py-3 px-4">Dia</th>
@@ -365,7 +366,7 @@ export const AdminQuestionsPage: React.FC = () => {
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </div>
       </div>
 

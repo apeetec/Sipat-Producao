@@ -9,10 +9,14 @@ import { Modal } from '../../../components/ui/Modal';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { Alert } from '../../../components/ui/Alert';
 import { Badge } from '../../../components/ui/Badge';
+import { Table } from '../../../components/ui/table';
+import { DateTimePicker } from '../../../components/ui/date-time-picker';
+import { ConfirmDialog } from '../../../components/ui/alert-dialog';
 import { toast } from '../../../components/feedback/ToastContainer';
 import { sha256Hex } from '../../../utils/security';
 import { isNodeBackendEnabled, NodeUploadsApi } from '../../../services/api/node-backend-client';
 import { formatDateToSaoPaulo } from '../../../utils/formatters';
+import { fromZonedTime } from 'date-fns-tz';
 import {
   makeUniqueSessionSlug,
   slugifySessionName,
@@ -39,6 +43,9 @@ export const AdminEventsPage: React.FC = () => {
   const [eventDates, setEventDates] = useState<EventDate[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Edit/create modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -247,8 +254,10 @@ export const AdminEventsPage: React.FC = () => {
       return;
     }
 
-    const openDate = new Date(opensAt);
-    const closeDate = new Date(closesAt);
+    // Os controles exibem sempre o horário oficial do evento. A conversão explícita
+    // evita que um administrador em outro fuso envie um instante incorreto à API.
+    const openDate = fromZonedTime(opensAt, 'America/Sao_Paulo');
+    const closeDate = fromZonedTime(closesAt, 'America/Sao_Paulo');
 
     if (Number.isNaN(openDate.getTime()) || Number.isNaN(closeDate.getTime())) {
       setModalError('Informe datas e horários válidos para a sessão.');
@@ -364,6 +373,39 @@ export const AdminEventsPage: React.FC = () => {
     loadData();
   };
 
+  const allEventsSelected = days.length > 0 && days.every(day => selectedEventIds.includes(day.id));
+
+  const toggleAllEvents = () => {
+    setSelectedEventIds(allEventsSelected ? [] : days.map(day => day.id));
+  };
+
+  const toggleEvent = (eventId: string) => {
+    setSelectedEventIds(current => current.includes(eventId)
+      ? current.filter(id => id !== eventId)
+      : [...current, eventId]);
+  };
+
+  const confirmDeletion = async () => {
+    if (!pendingDeleteIds.length || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      if (pendingDeleteIds.length === 1) {
+        await eventRepository.delete(pendingDeleteIds[0]);
+      } else {
+        await eventRepository.deleteMany(pendingDeleteIds);
+      }
+      const removed = pendingDeleteIds.length;
+      setSelectedEventIds(current => current.filter(id => !pendingDeleteIds.includes(id)));
+      setPendingDeleteIds([]);
+      toast.success(removed === 1 ? 'Sessão excluída com sucesso!' : `${removed} sessões excluídas com sucesso!`);
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir as sessões.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <AdminShell
       title="Gestão de Dias & Sessões"
@@ -375,11 +417,39 @@ export const AdminEventsPage: React.FC = () => {
       }
     >
       <div className="space-y-6">
+        {selectedEventIds.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-red-900">
+              <span className="tabular-nums">{selectedEventIds.length}</span> sessão(ões) selecionada(s)
+            </p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button variant="outline" size="sm" onClick={() => setSelectedEventIds([])}>
+                Limpar seleção
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="size-4" />}
+                onClick={() => setPendingDeleteIds(selectedEventIds)}
+              >
+                Excluir selecionadas
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left text-xs text-slate-700">
+            <Table className="min-w-[1120px] text-left text-xs text-slate-700">
               <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
                 <tr>
+                  <th className="w-12 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todas as sessões"
+                      checked={allEventsSelected}
+                      onChange={toggleAllEvents}
+                      className="size-4 rounded border-slate-300 text-[#028056] focus:ring-[#028056]"
+                    />
+                  </th>
                   <th className="py-3 px-4">Arte / Dia</th>
                   <th className="py-3 px-4">Tema & Palestrantes</th>
                   <th className="py-3 px-4">Período de Abertura</th>
@@ -391,7 +461,16 @@ export const AdminEventsPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {days.map(day => (
-                  <tr key={day.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={day.id} data-state={selectedEventIds.includes(day.id) ? 'selected' : undefined} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Selecionar sessão ${day.name}`}
+                        checked={selectedEventIds.includes(day.id)}
+                        onChange={() => toggleEvent(day.id)}
+                        className="size-4 rounded border-slate-300 text-[#028056] focus:ring-[#028056]"
+                      />
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         {/* Cover Art Miniature */}
@@ -484,15 +563,34 @@ export const AdminEventsPage: React.FC = () => {
                         >
                           <Archive className="w-3.5 h-3.5" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setPendingDeleteIds([day.id])}
+                          aria-label={`Excluir sessão ${day.name}`}
+                          title="Excluir sessão"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteIds.length > 0}
+        onOpenChange={open => { if (!open && !isDeleting) setPendingDeleteIds([]); }}
+        title={pendingDeleteIds.length === 1 ? 'Excluir esta sessão?' : `Excluir ${pendingDeleteIds.length} sessões?`}
+        description="As sessões deixarão de aparecer na programação. Esta ação preserva o histórico no banco, mas não poderá ser desfeita pelo painel."
+        confirmLabel={pendingDeleteIds.length === 1 ? 'Excluir sessão' : 'Excluir sessões'}
+        onConfirm={confirmDeletion}
+        loading={isDeleting}
+      />
 
       {/* Modal de Criação / Edição de Dia ou Sessão */}
       <Modal
@@ -582,31 +680,19 @@ export const AdminEventsPage: React.FC = () => {
           />
 
           {/* Datas e Horários */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">
-                Data e Horário de Abertura (Horário de Brasília) *
-              </label>
-              <input
-                type="datetime-local"
-                value={opensAt}
-                onChange={e => setOpensAt(e.target.value)}
-                required
-                className="w-full h-10 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">
-                Data e Horário de Encerramento (Horário de Brasília) *
-              </label>
-              <input
-                type="datetime-local"
-                value={closesAt}
-                onChange={e => setClosesAt(e.target.value)}
-                required
-                className="w-full h-10 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 sm:p-4">
+            <DateTimePicker
+              label="Data e horário de abertura (Brasília)"
+              value={opensAt}
+              onChange={setOpensAt}
+              required
+            />
+            <DateTimePicker
+              label="Data e horário de encerramento (Brasília)"
+              value={closesAt}
+              onChange={setClosesAt}
+              required
+            />
           </div>
 
           {/* SEÇÃO 1: VÍDEO DA SESSÃO COM ANEXO E PREVIEW EM MINIATURA */}
@@ -661,10 +747,10 @@ export const AdminEventsPage: React.FC = () => {
 
                 {videoAttachmentDataUrl ? (
                   <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span className="font-semibold text-slate-800">
+                        <span className="truncate font-semibold text-slate-800">
                           {videoAttachmentName || 'Arquivo de vídeo selecionado'}
                         </span>
                         {videoAttachmentSize && (
@@ -673,7 +759,7 @@ export const AdminEventsPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => videoFileInputRef.current?.click()}
@@ -784,11 +870,11 @@ export const AdminEventsPage: React.FC = () => {
 
                 {cardCoverImageUrl ? (
                   <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-800">
+                    <div className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                      <span className="truncate font-semibold text-slate-800">
                         {cardCoverImageName || 'Arte carregada com sucesso'}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => coverArtFileInputRef.current?.click()}
