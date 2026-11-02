@@ -11,6 +11,8 @@ import { adminController as c } from "./admin.controller.js";
 import {
   clientAuditEvent,
   eventCreate,
+  eventDateCreate,
+  eventDateUpdate,
   eventUpdate,
   questionCreate,
   questionUpdate,
@@ -93,6 +95,28 @@ protectedRouter.delete(
   "/units/:id",
   validate({ params: uuidParam }),
   asyncHandler(c.deleteUnit),
+);
+
+protectedRouter.get("/event-dates", asyncHandler(c.listEventDates));
+protectedRouter.post(
+  "/event-dates",
+  validate({ body: eventDateCreate }),
+  asyncHandler(c.createEventDate),
+);
+protectedRouter.get(
+  "/event-dates/:id",
+  validate({ params: uuidParam }),
+  asyncHandler(c.getEventDate),
+);
+protectedRouter.patch(
+  "/event-dates/:id",
+  validate({ params: uuidParam, body: eventDateUpdate }),
+  asyncHandler(c.updateEventDate),
+);
+protectedRouter.delete(
+  "/event-dates/:id",
+  validate({ params: uuidParam }),
+  asyncHandler(c.deleteEventDate),
 );
 
 protectedRouter.get("/events", asyncHandler(c.listEvents));

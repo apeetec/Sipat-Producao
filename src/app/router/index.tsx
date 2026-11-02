@@ -10,6 +10,7 @@ const EventDayPage = lazy(() => import('../../features/events/EventDayPage').the
 const WinnersPage = lazy(() => import('../../features/winners/WinnersPage').then(module => ({ default: module.WinnersPage })));
 const AdminDashboardPage = lazy(() => import('../../features/admin/dashboard/AdminDashboardPage').then(module => ({ default: module.AdminDashboardPage })));
 const AdminEventsPage = lazy(() => import('../../features/admin/event-management/AdminEventsPage').then(module => ({ default: module.AdminEventsPage })));
+const AdminEventDatesPage = lazy(() => import('../../features/admin/event-date-management/AdminEventDatesPage').then(module => ({ default: module.AdminEventDatesPage })));
 const AdminQuestionsPage = lazy(() => import('../../features/admin/question-management/AdminQuestionsPage').then(module => ({ default: module.AdminQuestionsPage })));
 const AdminUnitsPage = lazy(() => import('../../features/admin/unit-management/AdminUnitsPage').then(module => ({ default: module.AdminUnitsPage })));
 const AdminUsersPage = lazy(() => import('../../features/admin/user-management/AdminUsersPage').then(module => ({ default: module.AdminUsersPage })));
@@ -84,6 +85,14 @@ export const router = createBrowserRouter([
     element: (
       <AdminRoute>
         <AdminDashboardPage />
+      </AdminRoute>
+    ),
+  },
+  {
+    path: '/admin/datas',
+    element: (
+      <AdminRoute>
+        <AdminEventDatesPage />
       </AdminRoute>
     ),
   },

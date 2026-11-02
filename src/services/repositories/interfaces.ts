@@ -2,6 +2,7 @@ import {
   AppUser,
   Unit,
   EventDay,
+  EventDate,
   Question,
   Participation,
   Draw,
@@ -39,6 +40,14 @@ export interface IEventRepository {
   list(): Promise<EventDay[]>;
   create(day: Omit<EventDay, 'id' | 'createdAt' | 'updatedAt'> & { attendanceCode?: string }): Promise<EventDay>;
   update(id: string, updates: Partial<EventDay> & { attendanceCode?: string }): Promise<EventDay>;
+  delete(id: string): Promise<void>;
+}
+
+export interface IEventDateRepository {
+  getById(id: string): Promise<EventDate | null>;
+  list(): Promise<EventDate[]>;
+  create(date: Omit<EventDate, 'id' | 'createdAt' | 'updatedAt'>): Promise<EventDate>;
+  update(id: string, updates: Partial<EventDate>): Promise<EventDate>;
   delete(id: string): Promise<void>;
 }
 

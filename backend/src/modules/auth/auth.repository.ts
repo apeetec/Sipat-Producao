@@ -35,16 +35,16 @@ const userSelect = `
   JOIN organizations o ON o.id = u.organization_id AND o.deleted_at IS NULL
   JOIN campaigns c ON c.organization_id = o.id AND c.slug = ? AND c.active = 1 AND c.deleted_at IS NULL
   LEFT JOIN units un ON un.id = u.unit_id AND un.deleted_at IS NULL
-  LEFT JOIN regulations r ON r.campaign_id = c.id AND r.published = 1 AND r.deleted_at IS NULL
-    AND r.effective_from <= UTC_TIMESTAMP(3)
-  LEFT JOIN regulation_acceptances ra ON ra.regulation_id = r.id AND ra.user_id = u.id AND ra.deleted_at IS NULL`;
+  LEFT JOIN regulation_acceptances ra ON ra.user_id = u.id AND ra.deleted_at IS NULL
+  LEFT JOIN regulations r ON r.id = ra.regulation_id AND r.campaign_id = c.id
+    AND r.published = 1 AND r.deleted_at IS NULL AND r.effective_from <= UTC_TIMESTAMP(3)`;
 
 export class AuthRepository {
   async findByEmployeeNumber(employeeNumber: string): Promise<UserRow | null> {
     const result = await rows<UserRow[]>(
       `${userSelect}
       WHERE o.slug = ? AND u.employee_number = ? AND u.deleted_at IS NULL
-      ORDER BY r.effective_from DESC LIMIT 1`,
+      ORDER BY ra.accepted_at DESC LIMIT 1`,
       [
         env.DEFAULT_CAMPAIGN_SLUG,
         env.DEFAULT_ORGANIZATION_SLUG,
@@ -58,7 +58,7 @@ export class AuthRepository {
     const result = await rows<UserRow[]>(
       `${userSelect}
       WHERE u.id = ? AND u.deleted_at IS NULL
-      ORDER BY r.effective_from DESC LIMIT 1`,
+      ORDER BY ra.accepted_at DESC LIMIT 1`,
       [env.DEFAULT_CAMPAIGN_SLUG, id],
     );
     return result[0] ?? null;

@@ -35,6 +35,7 @@ export const AdminSidebar: React.FC<{ onCloseMobile?: () => void }> = ({ onClose
     {
       title: 'Programação & Conteúdo',
       items: [
+        { label: 'Datas da Programação', href: '/admin/datas', icon: <CalendarDays className="w-4 h-4" /> },
         { label: 'Dias & Sessões', href: '/admin/dias', icon: <CalendarDays className="w-4 h-4" /> },
         { label: 'Perguntas & Gabarito', href: '/admin/perguntas', icon: <HelpCircle className="w-4 h-4" /> },
         { label: 'Unidades Fabris', href: '/admin/unidades', icon: <Building2 className="w-4 h-4" /> },

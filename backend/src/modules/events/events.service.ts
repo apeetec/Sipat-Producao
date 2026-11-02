@@ -118,7 +118,7 @@ export class EventsService {
     const events = await adminRepository.listEvents(auth.campaignId);
     return auth.role === "admin"
       ? events
-      : events.filter((event: any) => event.active);
+      : events.filter((event: any) => event.active && event.eventDate?.active !== false);
   }
   async bySlug(auth: AuthUser, slug: string) {
     const ids = await rows<(RowDataPacket & { id: string })[]>(
@@ -130,7 +130,7 @@ export class EventsService {
   }
   async participant(auth: AuthUser, eventDayId: string) {
     const dayRow = await getDay(eventDayId, auth.campaignId);
-    const day = await adminRepository.getEvent(eventDayId);
+    const day = await adminRepository.getEvent(eventDayId, auth.campaignId);
     delete (day as any).attendanceCodeHash;
     const override = auth.id
       ? await rows<RowDataPacket[]>(

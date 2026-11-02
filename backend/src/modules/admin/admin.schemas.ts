@@ -61,6 +61,23 @@ export const unitCreate = z
   .strict();
 export const unitUpdate = unitCreate.partial().strict();
 
+const calendarDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use o formato YYYY-MM-DD.")
+  .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), "Data inválida.");
+
+export const eventDateCreate = z
+  .object({
+    name: cleanText(150),
+    eventDate: calendarDate,
+    dateLabel: cleanText(150),
+    description: optionalText(500),
+    active: boolean.default(true),
+    sortOrder: z.number().int().min(0).default(0),
+  })
+  .strict();
+export const eventDateUpdate = eventDateCreate.partial().strict();
+
 const speaker = z
   .object({
     id: z.string().uuid().optional(),
@@ -71,9 +88,10 @@ const speaker = z
   .strict();
 const eventBase = z
   .object({
+    eventDateId: z.string().uuid(),
     name: cleanText(150),
     slug,
-    dateLabel: cleanText(150),
+    dateLabel: cleanText(150).optional(),
     parentId: z.string().uuid().optional().nullable(),
     attraction: optionalText(255),
     theme: optionalText(255),

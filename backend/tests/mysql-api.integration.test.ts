@@ -133,12 +133,29 @@ integration("API integrada com MariaDB", () => {
           "<p>Conteúdo seguro</p>",
         );
 
+        const integrationDate = new Date(Date.UTC(2050, 0, 1 + (Number(suffix) % 10000)))
+          .toISOString()
+          .slice(0, 10);
+        const eventDateResponse = await asAdmin(
+          request(app).post("/api/admin/event-dates"),
+        ).send({
+          name: "Data de integração",
+          eventDate: integrationDate,
+          dateLabel: `Data ${integrationDate}`,
+          description: "Categoria usada pelo teste integrado",
+          active: true,
+          sortOrder: 1,
+        });
+        expect(eventDateResponse.status).toBe(201);
+        const eventDateId = eventDateResponse.body.id as string;
+
         const opensAt = new Date(Date.now() - 3_600_000).toISOString();
         const closesAt = new Date(Date.now() + 86_400_000).toISOString();
         const attendanceCode = "IT2026";
         const eventResponse = await asAdmin(
           request(app).post("/api/admin/events"),
         ).send({
+          eventDateId,
           name: `Evento integração ${suffix}`,
           slug: `evento-it-${suffix}`,
           dateLabel: "Teste integrado",
@@ -157,6 +174,7 @@ integration("API integrada com MariaDB", () => {
         const duplicateEvent = await asAdmin(
           request(app).post("/api/admin/events"),
         ).send({
+          eventDateId,
           name: `Evento integração ${suffix}`,
           slug: `evento-it-${suffix}`,
           dateLabel: "Teste integrado",

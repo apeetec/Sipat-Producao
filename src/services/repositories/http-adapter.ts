@@ -1,5 +1,5 @@
-import type { AppSettings, AppUser, AuditLog, AccessLog, Draw, EventDay, Participation, Question, Regulation, Unit } from '../../types';
-import type { IAuditRepository, IDrawRepository, IEventRepository, IParticipationRepository, IQuestionRepository, ISettingsRepository, IUnitRepository, IUserRepository } from './interfaces';
+import type { AppSettings, AppUser, AuditLog, AccessLog, Draw, EventDate, EventDay, Participation, Question, Regulation, Unit } from '../../types';
+import type { IAuditRepository, IDrawRepository, IEventDateRepository, IEventRepository, IParticipationRepository, IQuestionRepository, ISettingsRepository, IUnitRepository, IUserRepository } from './interfaces';
 import { request } from '../api/node-backend-client';
 import { buildQuestionPayload } from './question-payload';
 
@@ -57,12 +57,26 @@ export class HttpEventRepository implements IEventRepository {
   async getBySlug(slug: string) { const result = await request<{ day: EventDay }>(`/api/events/${slug}`).catch(() => null); return result?.day ?? null; }
   list() { return request<EventDay[]>('/api/events'); }
   private payload(day: Partial<EventDay> & { attendanceCode?: string }) {
-    const allowed = ['name','slug','dateLabel','parentId','attraction','theme','opensAt','closesAt','videoUrl','videoStoragePath','videoEmbedUrl','videoType','videoAttachmentName','cardCoverImageUrl','bannerImageUrl','attendanceCode','speakers','unitVideoOverrides','active','countsForFullWeek','sortOrder'] as const;
+    const allowed = ['eventDateId','name','slug','dateLabel','parentId','attraction','theme','opensAt','closesAt','videoUrl','videoStoragePath','videoEmbedUrl','videoType','videoAttachmentName','cardCoverImageUrl','bannerImageUrl','attendanceCode','speakers','unitVideoOverrides','active','countsForFullWeek','sortOrder'] as const;
     return Object.fromEntries(allowed.filter(key => key in day).map(key => [key, day[key]]));
   }
   create(day: Omit<EventDay, 'id' | 'createdAt' | 'updatedAt'> & { attendanceCode?: string }) { return request<EventDay>('/api/admin/events', { method: 'POST', body: JSON.stringify(this.payload(day)) }); }
   update(id: string, updates: Partial<EventDay> & { attendanceCode?: string }) { return request<EventDay>(`/api/admin/events/${id}`, { method: 'PATCH', body: JSON.stringify(this.payload(updates)) }); }
   async delete(id: string) { await request<void>(`/api/admin/events/${id}`, { method: 'DELETE' }); }
+}
+
+export class HttpEventDateRepository implements IEventDateRepository {
+  getById(id: string) { return request<EventDate>(`/api/admin/event-dates/${id}`).catch(() => null); }
+  list() { return request<EventDate[]>('/api/admin/event-dates'); }
+  create(date: Omit<EventDate, 'id' | 'createdAt' | 'updatedAt'>) {
+    return request<EventDate>('/api/admin/event-dates', { method: 'POST', body: JSON.stringify(date) });
+  }
+  update(id: string, updates: Partial<EventDate>) {
+    const allowed = ['name', 'eventDate', 'dateLabel', 'description', 'active', 'sortOrder'] as const;
+    const payload = Object.fromEntries(allowed.filter(key => key in updates).map(key => [key, updates[key]]));
+    return request<EventDate>(`/api/admin/event-dates/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  }
+  async delete(id: string) { await request<void>(`/api/admin/event-dates/${id}`, { method: 'DELETE' }); }
 }
 
 export class HttpQuestionRepository implements IQuestionRepository {

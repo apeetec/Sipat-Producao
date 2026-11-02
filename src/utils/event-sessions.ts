@@ -29,29 +29,38 @@ export const groupSessionsByDate = (events: EventDay[]): EventDateGroup[] => {
   const groups = new Map<string, EventDay[]>();
 
   events.forEach(event => {
-    const key = getEventDateKey(event);
+    // A categoria persistida é a fonte de verdade. O cálculo pelo calendário
+    // permanece somente como fallback para registros legados ainda não migrados.
+    const key = event.eventDateId || getEventDateKey(event);
     groups.set(key, [...(groups.get(key) || []), event]);
   });
 
   return [...groups.entries()]
-    .sort(([first], [second]) => first.localeCompare(second))
     .map(([key, sessions]) => {
       const orderedSessions = [...sessions].sort((first, second) => {
         const timeDifference = new Date(first.opensAt).getTime() - new Date(second.opensAt).getTime();
         return timeDifference || first.sortOrder - second.sortOrder;
       });
       const reference = orderedSessions[0];
-      const weekday = new Intl.DateTimeFormat('pt-BR', {
+      const legacyWeekday = new Intl.DateTimeFormat('pt-BR', {
         timeZone: reference.timezone || DEFAULT_TIMEZONE,
         weekday: 'long',
       }).format(new Date(reference.opensAt));
 
       return {
         key,
-        dateLabel: reference.dateLabel,
-        weekdayLabel: capitalize(weekday),
+        dateLabel: reference.eventDate?.dateLabel || reference.dateLabel,
+        weekdayLabel: reference.eventDate?.name || capitalize(legacyWeekday),
         sessions: orderedSessions,
       };
+    })
+    .sort((first, second) => {
+      const firstReference = first.sessions[0];
+      const secondReference = second.sessions[0];
+      const orderDifference = (firstReference.eventDate?.sortOrder ?? firstReference.sortOrder)
+        - (secondReference.eventDate?.sortOrder ?? secondReference.sortOrder);
+      return orderDifference || (firstReference.eventDate?.eventDate || getEventDateKey(firstReference))
+        .localeCompare(secondReference.eventDate?.eventDate || getEventDateKey(secondReference));
     });
 };
 

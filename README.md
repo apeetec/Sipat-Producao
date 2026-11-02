@@ -44,7 +44,8 @@ src/
     winners/           # Galeria pública de contemplados e sorteios oficiais
     admin/             # Painel administrativo completo:
       dashboard/       # KPIs, alertas editoriais e atalhos
-      event-management/# Gestão de dias, sessões e código presencial
+      event-date-management/ # Categorias de data da programação
+      event-management/      # Sessões vinculadas a uma categoria de data
       question-management/ # Banco de questões, alternativas e gabarito
       unit-management/ # Unidades fabris com prevenção de duplicidades
       user-management/ # Gestão de colaboradores e redefinição de senhas

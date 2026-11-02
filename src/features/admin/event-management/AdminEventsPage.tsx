@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { eventRepository, unitRepository, participationRepository } from '../../../services/repositories';
-import { EventDay, Unit } from '../../../types';
+import { eventDateRepository, eventRepository, unitRepository, participationRepository } from '../../../services/repositories';
+import { EventDate, EventDay, Unit } from '../../../types';
 import { AdminShell } from '../../../components/layout/AdminShell';
 import { Button } from '../../../components/ui/Button';
 import { TextField } from '../../../components/ui/TextField';
@@ -14,7 +14,6 @@ import { sha256Hex } from '../../../utils/security';
 import { isNodeBackendEnabled, NodeUploadsApi } from '../../../services/api/node-backend-client';
 import { formatDateToSaoPaulo } from '../../../utils/formatters';
 import {
-  groupSessionsByDate,
   makeUniqueSessionSlug,
   slugifySessionName,
   toDateTimeLocalValue,
@@ -37,6 +36,7 @@ import {
 
 export const AdminEventsPage: React.FC = () => {
   const [days, setDays] = useState<EventDay[]>([]);
+  const [eventDates, setEventDates] = useState<EventDate[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +48,7 @@ export const AdminEventsPage: React.FC = () => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [dateLabel, setDateLabel] = useState('');
-  const [groupingEventId, setGroupingEventId] = useState('');
+  const [eventDateId, setEventDateId] = useState('');
   const [attraction, setAttraction] = useState('');
   const [theme, setTheme] = useState('');
   const [opensAt, setOpensAt] = useState('');
@@ -81,11 +81,13 @@ export const AdminEventsPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [allDays, allUnits] = await Promise.all([
+      const [allDays, allDates, allUnits] = await Promise.all([
         eventRepository.list(),
+        eventDateRepository.list(),
         unitRepository.list(),
       ]);
       setDays(allDays);
+      setEventDates(allDates);
       setUnits(allUnits);
     } catch (err) {
       console.error(err);
@@ -103,7 +105,7 @@ export const AdminEventsPage: React.FC = () => {
     setName('');
     setSlug('');
     setDateLabel('');
-    setGroupingEventId('');
+    setEventDateId('');
     setAttraction('');
     setTheme('');
     setOpensAt(toDateTimeLocalValue(new Date().toISOString()));
@@ -133,7 +135,7 @@ export const AdminEventsPage: React.FC = () => {
     setName(day.name);
     setSlug(day.slug);
     setDateLabel(day.dateLabel);
-    setGroupingEventId(day.parentId || '');
+    setEventDateId(day.eventDateId || '');
     setAttraction(day.attraction || '');
     setTheme(day.theme || '');
     setOpensAt(toDateTimeLocalValue(day.opensAt));
@@ -234,8 +236,14 @@ export const AdminEventsPage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSaving) return;
-    if (!name || !slug) {
-      setModalError('Nome e slug são obrigatórios.');
+    if (!name || !slug || !eventDateId) {
+      setModalError('Data da programação, nome e slug são obrigatórios.');
+      return;
+    }
+
+    const selectedEventDate = eventDates.find(date => date.id === eventDateId);
+    if (!selectedEventDate) {
+      setModalError('Selecione uma data da programação válida.');
       return;
     }
 
@@ -283,9 +291,10 @@ export const AdminEventsPage: React.FC = () => {
       }
       if (editingDay) {
         await eventRepository.update(editingDay.id, {
+          eventDateId,
           name,
           slug: finalSlug,
-          dateLabel,
+          dateLabel: selectedEventDate.dateLabel,
           attraction,
           theme,
           opensAt: openDate.toISOString(),
@@ -306,10 +315,10 @@ export const AdminEventsPage: React.FC = () => {
         toast.success('Sessão atualizada com sucesso!');
       } else {
         await eventRepository.create({
+          eventDateId,
           name,
           slug: finalSlug,
-          dateLabel,
-          parentId: groupingEventId || undefined,
+          dateLabel: selectedEventDate.dateLabel,
           attraction,
           theme,
           timezone: 'America/Sao_Paulo',
@@ -339,20 +348,6 @@ export const AdminEventsPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const dateGroups = groupSessionsByDate(days);
-
-  const handleDateGroupChange = (eventId: string) => {
-    setGroupingEventId(eventId);
-    if (!eventId) return;
-
-    const reference = days.find(day => day.id === eventId);
-    if (!reference) return;
-
-    setDateLabel(reference.dateLabel);
-    setOpensAt(toDateTimeLocalValue(reference.opensAt));
-    setClosesAt(toDateTimeLocalValue(reference.closesAt));
   };
 
   const handleToggleArchive = async (day: EventDay) => {
@@ -415,6 +410,9 @@ export const AdminEventsPage: React.FC = () => {
                         )}
                         <div>
                           <strong className="text-slate-900 font-bold block text-sm">{day.name}</strong>
+                          <span className="text-[11px] font-semibold text-emerald-700 block">
+                            {day.eventDate?.name || day.dateLabel}
+                          </span>
                           <span className="text-[11px] text-slate-400 font-medium">/{day.slug}</span>
                         </div>
                       </div>
@@ -507,21 +505,25 @@ export const AdminEventsPage: React.FC = () => {
         <form onSubmit={handleSave} className="space-y-6">
           {modalError && <Alert variant="danger">{modalError}</Alert>}
 
-          {!editingDay && (
-            <Select
-              label="Data agrupadora"
-              value={groupingEventId}
-              onChange={event => handleDateGroupChange(event.target.value)}
-              options={[
-                { value: '', label: 'Criar em uma nova data' },
-                ...dateGroups.map(group => ({
-                  value: group.sessions[0].id,
-                  label: `${group.weekdayLabel} — ${group.dateLabel} (${group.sessions.length} ${group.sessions.length === 1 ? 'sessão' : 'sessões'})`,
-                })),
-              ]}
-              helperText="Selecione qualquer data existente para adicionar outra sessão independente a ela. Os horários podem ser alterados depois da seleção."
-            />
-          )}
+          <Select
+            label="Data da programação"
+            value={eventDateId}
+            onChange={event => {
+              const selectedId = event.target.value;
+              setEventDateId(selectedId);
+              const selected = eventDates.find(date => date.id === selectedId);
+              if (selected) setDateLabel(selected.dateLabel);
+            }}
+            options={[
+              { value: '', label: 'Selecione uma data cadastrada' },
+              ...eventDates.filter(date => date.active || date.id === eventDateId).map(date => ({
+                value: date.id,
+                label: `${date.name} — ${date.dateLabel}`,
+              })),
+            ]}
+            helperText="Cadastre novas categorias no menu Datas da Programação. Cada sessão pertence a uma categoria."
+            required
+          />
 
           {/* Dados Principais */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -552,7 +554,8 @@ export const AdminEventsPage: React.FC = () => {
               label="Rótulo da Data"
               placeholder="Ex: 10 de Novembro de 2026"
               value={dateLabel}
-              onChange={e => setDateLabel(e.target.value)}
+              readOnly
+              helperText="Definido automaticamente pela categoria selecionada."
               required
             />
             <TextField

@@ -38,8 +38,22 @@ export interface EventSpeaker {
   role?: string;
 }
 
+export interface EventDate {
+  id: string;
+  name: string;
+  eventDate: string; // YYYY-MM-DD
+  dateLabel: string;
+  description?: string;
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EventDay {
   id: string;
+  eventDateId?: string; // obrigatório na API nova; opcional somente para dados locais legados
+  eventDate?: EventDate;
   name: string;
   slug: string;
   dateLabel: string;

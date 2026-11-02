@@ -51,6 +51,42 @@ describe('agrupamento de sessões por data', () => {
     expect(groups[0].sessions.map(session => session.id)).toEqual(['quarta-manha', 'quarta-tarde']);
     expect(groups[1].sessions.map(session => session.id)).toEqual(['quinta']);
   });
+
+  it('usa a categoria persistida mesmo quando os horários caem em dias diferentes', () => {
+    const category = {
+      id: 'categoria-seguranca',
+      name: 'Categoria Segurança',
+      eventDate: '2026-11-06',
+      dateLabel: '6 de novembro de 2026',
+      active: true,
+      sortOrder: 1,
+      createdAt: '2026-11-02T00:00:00.000Z',
+      updatedAt: '2026-11-02T00:00:00.000Z',
+    };
+    const first = createSession({
+      id: 'first',
+      eventDateId: category.id,
+      eventDate: category,
+      opensAt: '2026-11-06T12:00:00.000Z',
+    });
+    const second = createSession({
+      id: 'second',
+      eventDateId: category.id,
+      eventDate: category,
+      opensAt: '2026-11-07T12:00:00.000Z',
+      sortOrder: 2,
+    });
+
+    const groups = groupSessionsByDate([second, first]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      key: category.id,
+      weekdayLabel: category.name,
+      dateLabel: category.dateLabel,
+    });
+    expect(groups[0].sessions.map(session => session.id)).toEqual(['first', 'second']);
+  });
 });
 
 describe('slug de sessões', () => {

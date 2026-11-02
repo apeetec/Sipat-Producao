@@ -24,9 +24,37 @@ function mapUnit(row: RowDataPacket) {
     updatedAt: iso(row.updated_at)!,
   };
 }
+function mapEventDate(row: RowDataPacket) {
+  const eventDate = row.event_date instanceof Date
+    ? row.event_date.toISOString().slice(0, 10)
+    : String(row.event_date).slice(0, 10);
+  return {
+    id: row.id,
+    name: row.name,
+    eventDate,
+    dateLabel: row.date_label,
+    description: row.description ?? undefined,
+    active: Boolean(row.active),
+    sortOrder: row.sort_order,
+    createdAt: iso(row.created_at)!,
+    updatedAt: iso(row.updated_at)!,
+  };
+}
 function mapEvent(row: RowDataPacket) {
   return {
     id: row.id,
+    eventDateId: row.event_date_id,
+    eventDate: row.event_date_id
+      ? {
+          id: row.event_date_id,
+          name: row.event_date_name,
+          eventDate: String(row.event_date_value).slice(0, 10),
+          dateLabel: row.event_date_label,
+          description: row.event_date_description ?? undefined,
+          active: Boolean(row.event_date_active),
+          sortOrder: row.event_date_sort_order,
+        }
+      : undefined,
     name: row.name,
     slug: row.slug,
     dateLabel: row.date_label,
@@ -374,20 +402,118 @@ export class AdminRepository {
     );
   }
 
+  async listEventDates(campaignId: string) {
+    const result = await rows<RowDataPacket[]>(
+      `SELECT *,DATE_FORMAT(event_date,'%Y-%m-%d') event_date FROM event_dates
+       WHERE campaign_id=? AND deleted_at IS NULL ORDER BY sort_order,event_date,name`,
+      [campaignId],
+    );
+    return result.map(mapEventDate);
+  }
+
+  async getEventDate(id: string, campaignId: string) {
+    const result = await rows<RowDataPacket[]>(
+      `SELECT *,DATE_FORMAT(event_date,'%Y-%m-%d') event_date FROM event_dates
+       WHERE id=? AND campaign_id=? AND deleted_at IS NULL LIMIT 1`,
+      [id, campaignId],
+    );
+    if (!result[0]) throw notFound("Data da programação");
+    return mapEventDate(result[0]);
+  }
+
+  async saveEventDate(campaignId: string, id: string | undefined, data: any) {
+    const eventDateId = id ?? randomUUID();
+    if (!id) {
+      await execute(
+        `INSERT INTO event_dates(id,campaign_id,name,event_date,date_label,description,active,sort_order)
+         VALUES(?,?,?,?,?,?,?,?)`,
+        [
+          eventDateId,
+          campaignId,
+          data.name,
+          data.eventDate,
+          data.dateLabel,
+          data.description ?? null,
+          bool(data.active),
+          data.sortOrder,
+        ],
+      );
+    } else {
+      const columns: Record<string, string> = {
+        name: "name",
+        eventDate: "event_date",
+        dateLabel: "date_label",
+        description: "description",
+        active: "active",
+        sortOrder: "sort_order",
+      };
+      const assignments: string[] = [];
+      const values: any[] = [];
+      for (const [key, column] of Object.entries(columns)) {
+        if (key in data) {
+          assignments.push(`${column}=?`);
+          values.push(key === "active" ? bool(data[key]) : data[key] ?? null);
+        }
+      }
+      if (assignments.length) {
+        values.push(eventDateId, campaignId);
+        const result = await execute(
+          `UPDATE event_dates SET ${assignments.join(",")} WHERE id=? AND campaign_id=? AND deleted_at IS NULL`,
+          values,
+        );
+        if (!result.affectedRows) throw notFound("Data da programação");
+      }
+      if (data.dateLabel !== undefined) {
+        await execute(
+          `UPDATE event_days SET date_label=? WHERE event_date_id=? AND campaign_id=? AND deleted_at IS NULL`,
+          [data.dateLabel, eventDateId, campaignId],
+        );
+      }
+    }
+    return this.getEventDate(eventDateId, campaignId);
+  }
+
+  async deleteEventDate(id: string, campaignId: string) {
+    const events = await rows<(RowDataPacket & { count: number })[]>(
+      `SELECT COUNT(*) count FROM event_days
+       WHERE event_date_id=? AND campaign_id=? AND deleted_at IS NULL`,
+      [id, campaignId],
+    );
+    if ((events[0]?.count ?? 0) > 0)
+      throw conflict("Esta data possui sessões. Reassocie todas elas a outra data antes de excluí-la.");
+    const result = await execute(
+      `UPDATE event_dates SET active=0,deleted_at=UTC_TIMESTAMP(3)
+       WHERE id=? AND campaign_id=? AND deleted_at IS NULL`,
+      [id, campaignId],
+    );
+    if (!result.affectedRows) throw notFound("Data da programação");
+  }
+
   async listEvents(campaignId: string) {
     const base = (
       await rows<RowDataPacket[]>(
-        `SELECT e.*,c.timezone FROM event_days e JOIN campaigns c ON c.id=e.campaign_id WHERE e.campaign_id=? AND e.deleted_at IS NULL ORDER BY e.sort_order`,
+        `SELECT e.*,c.timezone,d.name event_date_name,DATE_FORMAT(d.event_date,'%Y-%m-%d') event_date_value,
+                d.date_label event_date_label,d.description event_date_description,d.active event_date_active,
+                d.sort_order event_date_sort_order
+         FROM event_days e JOIN campaigns c ON c.id=e.campaign_id
+         JOIN event_dates d ON d.id=e.event_date_id AND d.deleted_at IS NULL
+         WHERE e.campaign_id=? AND e.deleted_at IS NULL
+         ORDER BY d.sort_order,d.event_date,e.sort_order,e.opens_at`,
         [campaignId],
       )
     ).map(mapEvent);
     await this.hydrateEvents(base);
     return base;
   }
-  async getEvent(id: string) {
+  async getEvent(id: string, campaignId: string) {
     const r = await rows<RowDataPacket[]>(
-      `SELECT e.*,c.timezone FROM event_days e JOIN campaigns c ON c.id=e.campaign_id WHERE e.id=? AND e.deleted_at IS NULL`,
-      [id],
+      `SELECT e.*,c.timezone,d.name event_date_name,DATE_FORMAT(d.event_date,'%Y-%m-%d') event_date_value,
+              d.date_label event_date_label,d.description event_date_description,d.active event_date_active,
+              d.sort_order event_date_sort_order
+       FROM event_days e JOIN campaigns c ON c.id=e.campaign_id
+       JOIN event_dates d ON d.id=e.event_date_id AND d.deleted_at IS NULL
+       WHERE e.id=? AND e.campaign_id=? AND e.deleted_at IS NULL`,
+      [id, campaignId],
     );
     if (!r[0]) throw notFound("Evento");
     const event = mapEvent(r[0]);
@@ -430,6 +556,28 @@ export class AdminRepository {
   ) {
     return transaction(async (db) => {
       const eventId = id ?? randomUUID();
+      let eventDate: any;
+      if (d.eventDateId) {
+        const dates = await rows<RowDataPacket[]>(
+          `SELECT id,date_label,active FROM event_dates
+           WHERE id=? AND campaign_id=? AND deleted_at IS NULL LIMIT 1`,
+          [d.eventDateId, campaignId],
+          db,
+        );
+        eventDate = dates[0];
+        if (!eventDate) throw notFound("Data da programação");
+        if (!eventDate.active) {
+          const current = id
+            ? await rows<RowDataPacket[]>(
+                "SELECT event_date_id FROM event_days WHERE id=? AND campaign_id=? AND deleted_at IS NULL",
+                [id, campaignId],
+                db,
+              )
+            : [];
+          if (!id || current[0]?.event_date_id !== eventDate.id)
+            throw conflict("Não é possível associar uma sessão a uma data inativa.");
+        }
+      }
       const codeHash = d.attendanceCode
         ? await bcrypt.hash(
             d.attendanceCode.toUpperCase(),
@@ -438,14 +586,15 @@ export class AdminRepository {
         : undefined;
       if (!id) {
         await execute(
-          `INSERT INTO event_days(id,campaign_id,parent_id,name,slug,date_label,attraction,theme,opens_at,closes_at,video_url,video_storage_path,video_embed_url,video_type,video_attachment_name,card_cover_image_url,banner_image_url,attendance_code_hash,attendance_code_length,active,counts_for_full_week,sort_order) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          `INSERT INTO event_days(id,campaign_id,event_date_id,parent_id,name,slug,date_label,attraction,theme,opens_at,closes_at,video_url,video_storage_path,video_embed_url,video_type,video_attachment_name,card_cover_image_url,banner_image_url,attendance_code_hash,attendance_code_length,active,counts_for_full_week,sort_order) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [
             eventId,
             campaignId,
+            d.eventDateId,
             d.parentId ?? null,
             d.name,
             d.slug,
-            d.dateLabel,
+            eventDate.date_label,
             d.attraction ?? null,
             d.theme ?? null,
             new Date(d.opensAt),
@@ -467,10 +616,10 @@ export class AdminRepository {
         );
       } else {
         const map: any = {
+          eventDateId: "event_date_id",
           parentId: "parent_id",
           name: "name",
           slug: "slug",
-          dateLabel: "date_label",
           attraction: "attraction",
           theme: "theme",
           opensAt: "opens_at",
@@ -503,10 +652,14 @@ export class AdminRepository {
           s.push("attendance_code_hash=?", "attendance_code_length=?");
           v.push(codeHash, d.attendanceCode.length);
         }
+        if (eventDate) {
+          s.push("date_label=?");
+          v.push(eventDate.date_label);
+        }
         if (s.length) {
-          v.push(eventId);
+          v.push(eventId, campaignId);
           await execute(
-            `UPDATE event_days SET ${s.join(",")} WHERE id=?`,
+            `UPDATE event_days SET ${s.join(",")} WHERE id=? AND campaign_id=?`,
             v,
             db,
           );

@@ -112,6 +112,33 @@ export const openapi = {
           originalName: { type: "string", example: "logo.png" },
         },
       },
+      EventDateInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "eventDate", "dateLabel"],
+        properties: {
+          name: { type: "string", example: "Segunda-feira" },
+          eventDate: { type: "string", format: "date", example: "2026-11-09" },
+          dateLabel: { type: "string", example: "9 de novembro de 2026" },
+          description: { type: "string", example: "Primeiro dia da programação" },
+          active: { type: "boolean" },
+          sortOrder: { type: "integer", minimum: 0 },
+        },
+      },
+      EventDate: {
+        allOf: [
+          { $ref: "#/components/schemas/EventDateInput" },
+          {
+            type: "object",
+            required: ["id", "createdAt", "updatedAt"],
+            properties: {
+              id: { type: "string", format: "uuid" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
     },
   },
   paths: {
@@ -334,6 +361,32 @@ export const openapi = {
         tag: "Admin — Eventos",
         body,
         created: true,
+      }),
+    },
+    "/admin/event-dates": {
+      ...operation("Listar datas/categorias da programação", "get", {
+        tag: "Admin — Datas da Programação",
+      }),
+      ...operation("Criar data/categoria da programação", "post", {
+        tag: "Admin — Datas da Programação",
+        body: { $ref: "#/components/schemas/EventDateInput" },
+        created: true,
+      }),
+    },
+    "/admin/event-dates/{id}": {
+      ...operation("Consultar data/categoria", "get", {
+        tag: "Admin — Datas da Programação",
+        parameters: id,
+      }),
+      ...operation("Atualizar data/categoria", "patch", {
+        tag: "Admin — Datas da Programação",
+        parameters: id,
+        body: { $ref: "#/components/schemas/EventDateInput" },
+      }),
+      ...operation("Excluir data sem sessões", "delete", {
+        tag: "Admin — Datas da Programação",
+        parameters: id,
+        noContent: true,
       }),
     },
     "/admin/events/{id}": {

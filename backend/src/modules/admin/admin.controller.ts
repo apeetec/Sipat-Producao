@@ -103,10 +103,38 @@ export const adminController = {
     await audited(req, "DELETE_UNIT", "units", id);
     res.status(204).send();
   },
+  listEventDates: async (req: Request, res: Response) =>
+    res.json(await adminRepository.listEventDates(req.auth!.campaignId)),
+  getEventDate: async (req: Request, res: Response) =>
+    res.json(await adminRepository.getEventDate(idOf(req), req.auth!.campaignId)),
+  createEventDate: async (req: Request, res: Response) => {
+    const item = await adminRepository.saveEventDate(
+      req.auth!.campaignId,
+      undefined,
+      req.body,
+    );
+    await audited(req, "CREATE_EVENT_DATE", "event_dates", item.id, item);
+    res.status(201).json(item);
+  },
+  updateEventDate: async (req: Request, res: Response) => {
+    const item = await adminRepository.saveEventDate(
+      req.auth!.campaignId,
+      idOf(req),
+      req.body,
+    );
+    await audited(req, "UPDATE_EVENT_DATE", "event_dates", item.id, item);
+    res.json(item);
+  },
+  deleteEventDate: async (req: Request, res: Response) => {
+    const id = idOf(req);
+    await adminRepository.deleteEventDate(id, req.auth!.campaignId);
+    await audited(req, "DELETE_EVENT_DATE", "event_dates", id);
+    res.status(204).send();
+  },
   listEvents: async (req: Request, res: Response) =>
     res.json(await adminRepository.listEvents(req.auth!.campaignId)),
   getEvent: async (req: Request, res: Response) =>
-    res.json(await adminRepository.getEvent(idOf(req))),
+    res.json(await adminRepository.getEvent(idOf(req), req.auth!.campaignId)),
   createEvent: async (req: Request, res: Response) => {
     const id = await adminRepository.saveEvent(
       req.auth!.campaignId,
@@ -114,7 +142,7 @@ export const adminController = {
       undefined,
       req.body,
     );
-    const item = await adminRepository.getEvent(id);
+    const item = await adminRepository.getEvent(id, req.auth!.campaignId);
     await audited(req, "CREATE_EVENT", "event_days", id, item);
     res.status(201).json(item);
   },
@@ -126,7 +154,7 @@ export const adminController = {
       id,
       req.body,
     );
-    const item = await adminRepository.getEvent(id);
+    const item = await adminRepository.getEvent(id, req.auth!.campaignId);
     await audited(req, "UPDATE_EVENT", "event_days", id, item);
     res.json(item);
   },

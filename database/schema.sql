@@ -184,9 +184,29 @@ CREATE TABLE IF NOT EXISTS `regulation_acceptances` (
   CONSTRAINT `fk_regulation_acceptances_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `event_dates` (
+  `id` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `campaign_id` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `name` VARCHAR(150) NOT NULL,
+  `event_date` DATE NOT NULL,
+  `date_label` VARCHAR(150) NOT NULL,
+  `description` VARCHAR(500) NULL,
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `sort_order` INT UNSIGNED NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  `deleted_at` DATETIME(3) NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_event_dates_campaign_date` (`campaign_id`, `event_date`),
+  KEY `idx_event_dates_campaign_active_sort` (`campaign_id`, `active`, `sort_order`),
+  CONSTRAINT `fk_event_dates_campaign` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT `ck_event_dates_active` CHECK (`active` IN (0, 1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `event_days` (
   `id` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   `campaign_id` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `event_date_id` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   `parent_id` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   `name` VARCHAR(150) NOT NULL,
   `slug` VARCHAR(150) NOT NULL,
@@ -213,9 +233,11 @@ CREATE TABLE IF NOT EXISTS `event_days` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_event_days_campaign_slug` (`campaign_id`, `slug`),
   KEY `idx_event_days_campaign_active_sort` (`campaign_id`, `active`, `sort_order`),
+  KEY `idx_event_days_event_date_sort` (`event_date_id`, `sort_order`),
   KEY `idx_event_days_window` (`opens_at`, `closes_at`),
   KEY `idx_event_days_parent` (`parent_id`),
   CONSTRAINT `fk_event_days_campaign` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT `fk_event_days_event_date` FOREIGN KEY (`event_date_id`) REFERENCES `event_dates` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT,
   CONSTRAINT `fk_event_days_parent` FOREIGN KEY (`parent_id`) REFERENCES `event_days` (`id`) ON UPDATE RESTRICT ON DELETE SET NULL,
   CONSTRAINT `ck_event_days_window` CHECK (`closes_at` > `opens_at`),
   CONSTRAINT `ck_event_days_video_type` CHECK (`video_type` IS NULL OR `video_type` IN ('url', 'attachment')),

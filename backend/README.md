@@ -82,7 +82,7 @@ Execute `npm run dev` na raiz em outro terminal. O Swagger fica em `http://local
 - `/api/auth/*`: login, restauração/refresh, logout, primeiro acesso, senha e aceite.
 - `/api/events/*`: dias, contexto do participante, presença, progresso e submissão.
 - `/api/winners`: galeria pública com matrícula mascarada conforme configuração.
-- `/api/admin/users|units|events|questions`: gestão administrativa.
+- `/api/admin/users|units|event-dates|events|questions`: gestão administrativa. `event-dates` mantém as categorias de data e cada evento/sessão referencia uma delas por `eventDateId`.
 - `/api/admin/participations`: resultados e respostas para relatórios.
 - `/api/admin/draws/*`: prévia, execução, histórico e anulação.
 - `/api/admin/settings|regulations|audit`: campanha, conteúdo e compliance.
@@ -134,3 +134,15 @@ pm2 startup
 9. Configure rotação dos logs, backup diário do banco e teste de restauração. Nunca publique `.env`, logs ou o diretório `backend/` dentro de `public_html`.
 
 Em atualizações: faça backup, envie o novo código, rode `npm ci && npm run verify`, publique o novo `dist/` do React e execute `pm2 reload sipat-api`. Alterações futuras de schema devem ser entregues como migrações incrementais, nunca editando dados manualmente em produção.
+
+### Migração de Datas da Programação (versão 2026-11-02)
+
+Antes de iniciar esta versão do backend em um banco que já possui eventos, importe pelo phpMyAdmin:
+
+```text
+database/migrations/20261102_event_dates.sql
+```
+
+A migração cria `event_dates`, gera uma categoria para cada data já existente, associa todos os registros de `event_days` e então ativa a chave estrangeira. Ela não altera vídeos, perguntas, participações ou sorteios. Faça backup do banco antes da importação. Em instalações novas, basta importar `database/schema.sql`, que já contém o modelo atualizado.
+
+Ordem segura de atualização: backup do banco → importar a migração → publicar/reiniciar o backend → publicar o frontend → testar `/api/health/ready`, `/api/admin/event-dates` e a criação de uma sessão.

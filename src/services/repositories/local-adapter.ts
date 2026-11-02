@@ -2,6 +2,7 @@ import {
   AppUser,
   Unit,
   EventDay,
+  EventDate,
   Question,
   Participation,
   Draw,
@@ -14,6 +15,7 @@ import {
   IUserRepository,
   IUnitRepository,
   IEventRepository,
+  IEventDateRepository,
   IQuestionRepository,
   IParticipationRepository,
   IDrawRepository,
@@ -34,6 +36,7 @@ const STORAGE_KEYS = {
   USERS: 'sipat_users_v1',
   UNITS: 'sipat_units_v1',
   EVENTS: 'sipat_events_v1',
+  EVENT_DATES: 'sipat_event_dates_v1',
   QUESTIONS: 'sipat_questions_v1',
   PARTICIPATIONS: 'sipat_participations_v1',
   DRAWS: 'sipat_draws_v1',
@@ -211,6 +214,45 @@ export function initializeLocalDatabase(): void {
 
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
   }
+
+  // Migração local idempotente: transforma as datas dos eventos legados em
+  // categorias reais, preservando todos os IDs e participações existentes.
+  const storedEvents = getItem<EventDay[]>(STORAGE_KEYS.EVENTS, []);
+  let storedDates = getItem<EventDate[]>(STORAGE_KEYS.EVENT_DATES, []);
+  if (!storedDates.length && storedEvents.length) {
+    const now = new Date().toISOString();
+    const byDate = new Map<string, EventDate>();
+    storedEvents.forEach(event => {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: event.timezone || 'America/Sao_Paulo',
+        year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'long',
+      }).formatToParts(new Date(event.opensAt));
+      const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+      const key = `${values.year}-${values.month}-${values.day}`;
+      if (!byDate.has(key)) {
+        byDate.set(key, {
+          id: `event-date-${key}`,
+          name: event.name || values.weekday,
+          eventDate: key,
+          dateLabel: event.dateLabel,
+          active: true,
+          sortOrder: event.sortOrder,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    });
+    storedDates = [...byDate.values()].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+    setItem(STORAGE_KEYS.EVENT_DATES, storedDates);
+  }
+  if (storedDates.length) {
+    const migratedEvents = storedEvents.map(event => {
+      if (event.eventDateId) return event;
+      const category = storedDates.find(date => date.dateLabel === event.dateLabel);
+      return category ? { ...event, eventDateId: category.id, eventDate: category } : event;
+    });
+    setItem(STORAGE_KEYS.EVENTS, migratedEvents);
+  }
 }
 
 // Evita carregar dados demonstrativos (inclusive gabaritos) quando a API real
@@ -375,6 +417,43 @@ export class LocalUnitRepository implements IUnitRepository {
   async delete(id: string): Promise<void> {
     const units = getItem<Unit[]>(STORAGE_KEYS.UNITS, []);
     setItem(STORAGE_KEYS.UNITS, units.filter(u => u.id !== id));
+  }
+}
+
+export class LocalEventDateRepository implements IEventDateRepository {
+  async getById(id: string): Promise<EventDate | null> {
+    return getItem<EventDate[]>(STORAGE_KEYS.EVENT_DATES, []).find(date => date.id === id) || null;
+  }
+
+  async list(): Promise<EventDate[]> {
+    return getItem<EventDate[]>(STORAGE_KEYS.EVENT_DATES, [])
+      .sort((first, second) => first.sortOrder - second.sortOrder || first.eventDate.localeCompare(second.eventDate));
+  }
+
+  async create(data: Omit<EventDate, 'id' | 'createdAt' | 'updatedAt'>): Promise<EventDate> {
+    const dates = getItem<EventDate[]>(STORAGE_KEYS.EVENT_DATES, []);
+    if (dates.some(date => date.eventDate === data.eventDate)) throw new Error('Já existe uma categoria para esta data.');
+    const now = new Date().toISOString();
+    const created = { ...data, id: `event-date-${Date.now()}`, createdAt: now, updatedAt: now };
+    setItem(STORAGE_KEYS.EVENT_DATES, [...dates, created]);
+    return created;
+  }
+
+  async update(id: string, updates: Partial<EventDate>): Promise<EventDate> {
+    const dates = getItem<EventDate[]>(STORAGE_KEYS.EVENT_DATES, []);
+    const index = dates.findIndex(date => date.id === id);
+    if (index < 0) throw new Error('Data da programação não encontrada.');
+    const updated = { ...dates[index], ...updates, updatedAt: new Date().toISOString() };
+    dates[index] = updated;
+    setItem(STORAGE_KEYS.EVENT_DATES, dates);
+    return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    const events = getItem<EventDay[]>(STORAGE_KEYS.EVENTS, []);
+    if (events.some(event => event.eventDateId === id)) throw new Error('Esta data possui sessões associadas.');
+    const dates = getItem<EventDate[]>(STORAGE_KEYS.EVENT_DATES, []);
+    setItem(STORAGE_KEYS.EVENT_DATES, dates.filter(date => date.id !== id));
   }
 }
 
