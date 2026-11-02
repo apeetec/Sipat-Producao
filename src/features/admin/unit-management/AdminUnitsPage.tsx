@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { unitRepository } from '../../../services/repositories';
+import { unitRepository, userRepository } from '../../../services/repositories';
 import { Unit } from '../../../types';
 import { AdminShell } from '../../../components/layout/AdminShell';
 import { Button } from '../../../components/ui/Button';
@@ -40,7 +40,18 @@ export const AdminUnitsPage: React.FC = () => {
     try {
       setLoading(true);
       const allUnits = await unitRepository.list();
-      setUnits(allUnits);
+      if (allUnits.every(unit => unit.userCount !== undefined)) {
+        setUnits(allUnits);
+      } else {
+        // Fallback de rollout para a API anterior. Após o backend novo entrar,
+        // a tela deixa de baixar todos os usuários e usa a agregação do banco.
+        const allUsers = await userRepository.list();
+        const counts = allUsers.reduce<Record<string, number>>((result, user) => {
+          if (user.unitId) result[user.unitId] = (result[user.unitId] || 0) + 1;
+          return result;
+        }, {});
+        setUnits(allUnits.map(unit => ({ ...unit, userCount: counts[unit.id] || 0 })));
+      }
     } catch (err) {
       console.error(err);
     } finally {

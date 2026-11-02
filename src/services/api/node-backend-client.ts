@@ -97,7 +97,9 @@ export async function request<T>(endpoint: string, options: RequestInit = {}, ca
     } catch {
       // Falha ao parsear JSON de erro
     }
-    throw new Error(errorMessage);
+    const requestError = new Error(errorMessage) as Error & { status?: number };
+    requestError.status = response.status;
+    throw requestError;
   }
 
   if (response.status === 204) return undefined as T;

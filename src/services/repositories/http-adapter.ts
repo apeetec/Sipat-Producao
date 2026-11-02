@@ -63,11 +63,20 @@ export class HttpEventRepository implements IEventRepository {
   create(day: Omit<EventDay, 'id' | 'createdAt' | 'updatedAt'> & { attendanceCode?: string }) { return request<EventDay>('/api/admin/events', { method: 'POST', body: JSON.stringify(this.payload(day)) }); }
   update(id: string, updates: Partial<EventDay> & { attendanceCode?: string }) { return request<EventDay>(`/api/admin/events/${id}`, { method: 'PATCH', body: JSON.stringify(this.payload(updates)) }); }
   async delete(id: string) { await request<void>(`/api/admin/events/${id}`, { method: 'DELETE' }); }
-  deleteMany(eventIds: string[]) {
-    return request<{ affectedEvents: number }>('/api/admin/events/bulk-delete', {
-      method: 'POST',
-      body: JSON.stringify({ eventIds }),
-    });
+  async deleteMany(eventIds: string[]) {
+    try {
+      return await request<{ affectedEvents: number }>('/api/admin/events/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ eventIds }),
+      });
+    } catch (error) {
+      // Compatibilidade durante rollout: o frontend pode ser publicado antes da API.
+      // Só fazemos fallback se a rota ainda não existir; outros erros permanecem visíveis.
+      const status = (error as Error & { status?: number })?.status;
+      if (status !== 404 && status !== 405) throw error;
+      for (const eventId of eventIds) await this.delete(eventId);
+      return { affectedEvents: eventIds.length };
+    }
   }
 }
 
