@@ -77,14 +77,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         {question.type === 'rating' && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {question.alternatives.map(alt => {
+              {question.alternatives.map((alt, altIndex) => {
                 const isSelected = value?.alternativeId === alt.id;
                 return (
                   <button
                     key={alt.id}
                     type="button"
                     disabled={disabled}
-                    onClick={() => onChange({ ...value, alternativeId: alt.id })}
+                    onClick={() => onChange({
+                      ...value,
+                      alternativeId: alt.id,
+                      rating: alt.ratingValue ?? altIndex + 1,
+                    })}
                     className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-emerald-50 border-[#028056] text-[#015237] ring-1 ring-[#028056]'

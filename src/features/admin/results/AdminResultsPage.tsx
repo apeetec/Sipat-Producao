@@ -6,7 +6,7 @@ import {
   participationRepository,
   unitRepository,
 } from '../../../services/repositories';
-import { AppUser, EventDay, Question, Participation, Unit } from '../../../types';
+import { AppUser, EventDay, Question, Participation, ParticipationAnswer, Unit } from '../../../types';
 import { AdminShell } from '../../../components/layout/AdminShell';
 import { Button } from '../../../components/ui/Button';
 import { TextField } from '../../../components/ui/TextField';
@@ -18,6 +18,7 @@ import { exportMultiSheetExcel, exportToExcel } from '../../../services/exports/
 import { SendEmailReportModal } from './SendEmailReportModal';
 import { toast } from '../../../components/feedback/ToastContainer';
 import { formatDateToSaoPaulo } from '../../../utils/formatters';
+import { indexParticipations } from './participation-map';
 import {
   Search,
   Download,
@@ -37,6 +38,13 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react';
+
+const getRatingValue = (question: Question, answer?: ParticipationAnswer) => {
+  if (answer?.rating !== undefined) return answer.rating;
+  const optionIndex = question.alternatives.findIndex(option => option.id === answer?.alternativeId);
+  if (optionIndex < 0) return undefined;
+  return question.alternatives[optionIndex].ratingValue ?? optionIndex + 1;
+};
 
 export const AdminResultsPage: React.FC = () => {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -95,9 +103,7 @@ export const AdminResultsPage: React.FC = () => {
 
   // Map participations by `${userId}_${eventDayId}`
   const partMap = useMemo(() => {
-    const map = new Map<string, Participation>();
-    participations.forEach(p => map.set(p.id, p));
-    return map;
+    return indexParticipations(participations);
   }, [participations]);
 
   // Group questions by day
@@ -232,7 +238,7 @@ export const AdminResultsPage: React.FC = () => {
               row[colName] = `[${altLetter}] ${selectedAlt?.text || ''}`;
             }
           } else if (q.type === 'rating') {
-            row[colName] = `${ans.rating} estrelas`;
+            row[colName] = `${getRatingValue(q, ans)} estrelas`;
           } else {
             row[colName] = ans.text || 'Respondido';
           }
@@ -278,8 +284,9 @@ export const AdminResultsPage: React.FC = () => {
               }
             }
           } else if (q.type === 'rating') {
-            if (ans?.rating !== undefined) {
-              selectedAnswerText = `${ans.rating} Estrelas`;
+            const rating = getRatingValue(q, ans);
+            if (rating !== undefined) {
+              selectedAnswerText = `${rating} Estrelas`;
               correctnessStatus = 'AVALIAÇÃO';
             }
           } else if (q.type === 'free_text') {
@@ -852,14 +859,15 @@ export const AdminResultsPage: React.FC = () => {
 
                               // Rating question
                               if (q.type === 'rating') {
+                                const rating = getRatingValue(q, ans);
                                 return (
                                   <td
                                     key={q.id}
                                     className="py-2 px-2 text-center border-r border-slate-100"
-                                    title={`Avaliação: ${ans?.rating} estrelas`}
+                                    title={`Avaliação: ${rating} estrelas`}
                                   >
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                                      ★ {ans?.rating}
+                                      ★ {rating}
                                     </span>
                                   </td>
                                 );

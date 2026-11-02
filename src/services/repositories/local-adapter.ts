@@ -289,6 +289,38 @@ export class LocalUserRepository implements IUserRepository {
     await this.update(id, { active: false });
   }
 
+  async resetParticipations(userIds: string[], eventDayId?: string): Promise<{ affectedUsers: number; resetParticipations: number }> {
+    const selected = new Set(userIds);
+    const participations = getItem<Participation[]>(STORAGE_KEYS.PARTICIPATIONS, []);
+    let resetParticipations = 0;
+    const updated = participations.map(participation => {
+      if (!selected.has(participation.userId) || (eventDayId && participation.eventDayId !== eventDayId)) return participation;
+      resetParticipations++;
+      return {
+        ...participation,
+        status: 'in_progress' as const,
+        answers: {},
+        suggestions: {},
+        submittedAt: undefined,
+        correctCount: undefined,
+        scoredQuestionCount: undefined,
+        percentage: undefined,
+        perfectScore: false,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    setItem(STORAGE_KEYS.PARTICIPATIONS, updated);
+    return { affectedUsers: userIds.length, resetParticipations };
+  }
+
+  async deleteMany(userIds: string[]): Promise<{ affectedUsers: number }> {
+    const selected = new Set(userIds);
+    const users = getItem<AppUser[]>(STORAGE_KEYS.USERS, []);
+    const updated = users.filter(user => !selected.has(user.id));
+    setItem(STORAGE_KEYS.USERS, updated);
+    return { affectedUsers: users.length - updated.length };
+  }
+
   async count(): Promise<number> {
     const users = getItem<AppUser[]>(STORAGE_KEYS.USERS, []);
     return users.length;

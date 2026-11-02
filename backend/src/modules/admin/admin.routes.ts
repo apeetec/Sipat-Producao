@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAdmin, requireAuth } from "../../middlewares/auth.js";
-import { sensitiveLimiter } from "../../middlewares/security.js";
+import {
+  adminBatchLimiter,
+  sensitiveLimiter,
+} from "../../middlewares/security.js";
 import { asyncHandler, validate } from "../../shared/http.js";
 import { pageQuery, uuidParam } from "../../shared/schemas.js";
 import { adminController as c } from "./admin.controller.js";
@@ -17,6 +20,8 @@ import {
   unitUpdate,
   userCreate,
   userUpdate,
+  selectedUsers,
+  resetUserParticipations,
 } from "./admin.schemas.js";
 import { auditRepository } from "../audit/audit.repository.js";
 
@@ -38,6 +43,18 @@ protectedRouter.post(
   sensitiveLimiter,
   validate({ body: userCreate }),
   asyncHandler(c.createUser),
+);
+protectedRouter.post(
+  "/users/reset-participations",
+  adminBatchLimiter,
+  validate({ body: resetUserParticipations }),
+  asyncHandler(c.resetUserParticipations),
+);
+protectedRouter.post(
+  "/users/bulk-delete",
+  adminBatchLimiter,
+  validate({ body: selectedUsers }),
+  asyncHandler(c.deleteUsers),
 );
 protectedRouter.get(
   "/users/:id",

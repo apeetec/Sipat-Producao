@@ -75,6 +75,7 @@ export interface Alternative {
   id: string;
   text: string;
   isCorrect?: boolean; // apenas admin/backend
+  ratingValue?: number;
 }
 
 export interface Question {

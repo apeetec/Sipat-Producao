@@ -159,7 +159,11 @@ uploadsAdminRouter.post(
         req.ip,
       );
 
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      // Em hospedagens com proxy reverso, req.protocol pode ser "http" mesmo
+      // para uma chamada HTTPS. A origem pública explícita evita Mixed Content.
+      const baseUrl =
+        env.publicBaseUrl ??
+        `${env.isProduction ? "https" : req.protocol}://${req.get("host")}`;
       res.status(201).json({
         url: `${baseUrl}${env.API_PREFIX}/uploads/${kind}/${filename}`,
         mimeType: detected.mime,

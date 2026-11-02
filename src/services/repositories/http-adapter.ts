@@ -28,6 +28,18 @@ export class HttpUserRepository implements IUserRepository {
     return request<AppUser>(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
   }
   async deactivate(id: string) { await request<void>(`/api/admin/users/${id}`, { method: 'DELETE' }); }
+  resetParticipations(userIds: string[], eventDayId?: string) {
+    return request<{ affectedUsers: number; resetParticipations: number }>('/api/admin/users/reset-participations', {
+      method: 'POST',
+      body: JSON.stringify({ userIds, ...(eventDayId ? { eventDayId } : {}) }),
+    });
+  }
+  deleteMany(userIds: string[]) {
+    return request<{ affectedUsers: number }>('/api/admin/users/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ userIds }),
+    });
+  }
   async count() { return (await this.list()).length; }
 }
 

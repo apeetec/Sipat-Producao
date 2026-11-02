@@ -116,7 +116,7 @@ Hospedagem compartilhada serve o React, mas a API Node precisa de VPS ou de um p
 
 1. Crie banco e usuário no hPanel. Importe `database/schema.sql` no phpMyAdmin.
 2. No servidor, mantenha o projeto fora do diretório público, por exemplo `/var/www/sipat/app`.
-3. Em `backend`, crie `.env` a partir do exemplo. Use segredos aleatórios diferentes, banco com privilégio apenas de DML e `CORS_ORIGINS=https://khalifadeveloper.com.br`.
+3. Em `backend`, crie `.env` a partir do exemplo. Use segredos aleatórios diferentes, banco com privilégio apenas de DML, `CORS_ORIGINS=https://khalifadeveloper.com.br` e `PUBLIC_BASE_URL=https://backendportfolio.khalifadeveloper.com.br`. Esta última variável garante URLs HTTPS corretas para imagens e vídeos quando a aplicação está atrás do proxy da Hostinger.
 4. Execute `npm ci`, `npm run verify` e `npm run db:bootstrap` apenas no primeiro deploy.
 5. Instale PM2 e inicie a API:
 

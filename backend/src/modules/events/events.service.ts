@@ -4,6 +4,7 @@ import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { execute, rows, transaction } from "../../database/pool.js";
 import { AppError, notFound } from "../../shared/errors.js";
 import { hashIp } from "../../shared/security.js";
+import { canonicalPublicUrl } from "../../shared/public-url.js";
 import type { AuthUser } from "../auth/auth.types.js";
 import { adminRepository } from "../admin/admin.repository.js";
 import { auditRepository } from "../audit/audit.repository.js";
@@ -137,7 +138,7 @@ export class EventsService {
           [eventDayId, auth.id],
         )
       : [];
-    if (override[0]) day.videoUrl = override[0].video_url;
+    if (override[0]) day.videoUrl = canonicalPublicUrl(override[0].video_url);
     const participation = await getParticipation(auth.id, eventDayId);
     const includeAnswers =
       Boolean(dayRow.show_correct_answers_after_submit) &&
@@ -352,13 +353,19 @@ export class EventsService {
         scored = 0;
       for (const q of questions) {
         const answer = payload.answers[q.id];
-        if (q.required && !answer)
+        const missingRequiredAnswer =
+          !answer ||
+          ((q.type === "single_choice" || q.type === "rating") &&
+            !answer.alternativeId) ||
+          (q.type === "free_text" && !answer.text?.trim());
+        if (q.required && missingRequiredAnswer)
           throw new AppError(
             422,
             "VALIDATION_ERROR",
             `A pergunta "${q.title}" é obrigatória.`,
           );
         let isCorrect: null | number = null;
+        let ratingValue: number | null = answer?.rating ?? null;
         if (q.type === "single_choice" && answer?.alternativeId) {
           const selected = options.find(
             (o) => o.id === answer.alternativeId && o.question_id === q.id,
@@ -374,6 +381,19 @@ export class EventsService {
             isCorrect = selected.is_correct ? 1 : 0;
             if (isCorrect) correct++;
           }
+        } else if (q.type === "rating" && answer?.alternativeId) {
+          const selected = options.find(
+            (o) => o.id === answer.alternativeId && o.question_id === q.id,
+          );
+          if (!selected)
+            throw new AppError(
+              422,
+              "INVALID_OPTION",
+              "Alternativa inválida para a pergunta.",
+            );
+          ratingValue =
+            ratingValue ??
+            Number(selected.rating_value ?? Number(selected.sort_order) + 1);
         } else if (q.scored) scored++;
         await execute(
           `INSERT INTO participation_answers(id,participation_id,question_id,selected_option_id,text_answer,rating_value,suggestion_text,is_correct)VALUES(?,?,?,?,?,?,?,?)`,
@@ -383,7 +403,7 @@ export class EventsService {
             q.id,
             answer?.alternativeId ?? null,
             answer?.text ?? null,
-            answer?.rating ?? null,
+            ratingValue,
             payload.suggestions[q.id] ?? null,
             isCorrect,
           ],

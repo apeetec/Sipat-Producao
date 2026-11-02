@@ -65,6 +65,7 @@ export const AdminEventsPage: React.FC = () => {
   const [speakersText, setSpeakersText] = useState('');
   const [newAttendanceCode, setNewAttendanceCode] = useState('');
   const [modalError, setModalError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const coverArtFileInputRef = useRef<HTMLInputElement>(null);
@@ -222,6 +223,7 @@ export const AdminEventsPage: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     if (!name || !slug) {
       setModalError('Nome e slug são obrigatórios.');
       return;
@@ -250,6 +252,8 @@ export const AdminEventsPage: React.FC = () => {
     }
 
     try {
+      setIsSaving(true);
+      setModalError('');
       let finalVideoUrl = videoSourceType === 'attachment'
         ? (videoAttachmentDataUrl || '')
         : (videoUrl.trim() || '');
@@ -314,6 +318,8 @@ export const AdminEventsPage: React.FC = () => {
       loadData();
     } catch (err: any) {
       setModalError(err.message || 'Erro ao salvar dia.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -824,10 +830,10 @@ export const AdminEventsPage: React.FC = () => {
 
           {/* Modal Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+            <Button type="button" variant="outline" disabled={isSaving} onClick={() => setIsModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" variant="action">
+            <Button type="submit" variant="action" loading={isSaving}>
               Salvar Dia e Sessão
             </Button>
           </div>

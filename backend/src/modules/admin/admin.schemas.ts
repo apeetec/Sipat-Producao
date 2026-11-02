@@ -111,6 +111,16 @@ export const eventUpdate = eventBase
     { path: ["closesAt"], message: "Janela inválida." },
   );
 
+export const selectedUsers = z
+  .object({
+    userIds: z.array(z.string().uuid()).min(1).max(500),
+  })
+  .strict();
+
+export const resetUserParticipations = selectedUsers.extend({
+  eventDayId: z.string().uuid().optional(),
+});
+
 const alternative = z
   .object({
     id: z.string().uuid().optional(),

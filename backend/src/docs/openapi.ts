@@ -54,6 +54,19 @@ const operation = (
   },
 });
 const body = { type: "object", additionalProperties: true };
+const selectedUsersBody = {
+  type: "object",
+  additionalProperties: false,
+  required: ["userIds"],
+  properties: {
+    userIds: {
+      type: "array",
+      minItems: 1,
+      maxItems: 500,
+      items: { type: "string", format: "uuid" },
+    },
+  },
+};
 const id = [
   {
     name: "id",
@@ -267,6 +280,28 @@ export const openapi = {
         tag: "Admin — Usuários",
         parameters: id,
         noContent: true,
+      }),
+    },
+    "/admin/users/reset-participations": {
+      ...operation("Resetar respostas dos usuários selecionados", "post", {
+        tag: "Admin — Usuários",
+        body: {
+          ...selectedUsersBody,
+          properties: {
+            ...selectedUsersBody.properties,
+            eventDayId: {
+              type: "string",
+              format: "uuid",
+              description: "Opcional; sem este campo, reseta todos os eventos da campanha.",
+            },
+          },
+        },
+      }),
+    },
+    "/admin/users/bulk-delete": {
+      ...operation("Excluir logicamente os usuários selecionados", "post", {
+        tag: "Admin — Usuários",
+        body: selectedUsersBody,
       }),
     },
     "/admin/units": {

@@ -34,6 +34,13 @@ export const sensitiveLimiter = rateLimit({
   legacyHeaders: false,
   message: rateResponse,
 });
+export const adminBatchLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: rateResponse,
+});
 
 const blocked = new Map<string, number>();
 const traps = new Set([

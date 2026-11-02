@@ -54,6 +54,32 @@ export const adminController = {
     await audited(req, "DEACTIVATE_USER", "users", id);
     res.status(204).send();
   },
+  deleteUsers: async (req: Request, res: Response) => {
+    const result = await adminRepository.deactivateUsers(
+      req.body.userIds,
+      req.auth!.organizationId,
+      req.auth!.id,
+    );
+    await audited(req, "BULK_DELETE_USERS", "users", "batch", {
+      userIds: req.body.userIds,
+      ...result,
+    });
+    res.json(result);
+  },
+  resetUserParticipations: async (req: Request, res: Response) => {
+    const result = await adminRepository.resetUserParticipations(
+      req.body.userIds,
+      req.auth!.organizationId,
+      req.auth!.campaignId,
+      req.body.eventDayId,
+    );
+    await audited(req, "RESET_USER_PARTICIPATIONS", "participations", "batch", {
+      userIds: req.body.userIds,
+      eventDayId: req.body.eventDayId,
+      ...result,
+    });
+    res.json(result);
+  },
   listUnits: async (req: Request, res: Response) =>
     res.json(await adminRepository.listUnits(req.auth!.organizationId)),
   getUnit: async (req: Request, res: Response) =>

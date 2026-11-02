@@ -19,6 +19,8 @@ export interface IUserRepository {
   create(user: Omit<AppUser, 'id' | 'createdAt' | 'updatedAt'> & { temporaryPassword?: string }, id?: string): Promise<AppUser>;
   update(id: string, updates: Partial<AppUser> & { temporaryPassword?: string }): Promise<AppUser>;
   deactivate(id: string): Promise<void>;
+  resetParticipations(userIds: string[], eventDayId?: string): Promise<{ affectedUsers: number; resetParticipations: number }>;
+  deleteMany(userIds: string[]): Promise<{ affectedUsers: number }>;
   count(): Promise<number>;
 }
 

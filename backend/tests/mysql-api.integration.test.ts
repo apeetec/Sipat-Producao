@@ -9,6 +9,7 @@ integration("API integrada com MariaDB", () => {
   it(
     "executa autenticação, CRUD administrativo, participação, sorteio e auditoria",
     async () => {
+      process.env.PUBLIC_BASE_URL = "https://backend.example.test";
       const [{ createApp }, { pool, rows }] = await Promise.all([
         import("../src/app.js"),
         import("../src/database/pool.js"),
@@ -55,6 +56,9 @@ integration("API integrada com MariaDB", () => {
         );
         expect(upload.status).toBe(201);
         expect(upload.body.mimeType).toBe("image/png");
+        expect(upload.body.url).toMatch(
+          /^https:\/\/backend\.example\.test\/api\/uploads\/image\//,
+        );
         const uploadedAsset = await request(app).get(new URL(upload.body.url).pathname);
         expect(uploadedAsset.status).toBe(200);
         expect(uploadedAsset.headers["content-type"]).toContain("image/png");
@@ -150,6 +154,23 @@ integration("API integrada com MariaDB", () => {
         expect(eventResponse.status).toBe(201);
         const eventId = eventResponse.body.id as string;
 
+        const duplicateEvent = await asAdmin(
+          request(app).post("/api/admin/events"),
+        ).send({
+          name: `Evento integração ${suffix}`,
+          slug: `evento-it-${suffix}`,
+          dateLabel: "Teste integrado",
+          opensAt,
+          closesAt,
+          attendanceCode,
+          speakers: [],
+          unitVideoOverrides: {},
+          active: true,
+          countsForFullWeek: true,
+          sortOrder: 1,
+        });
+        expect(duplicateEvent.status).toBe(409);
+
         const questionResponse = await asAdmin(
           request(app).post("/api/admin/questions"),
         ).send({
@@ -171,6 +192,28 @@ integration("API integrada com MariaDB", () => {
           (option: { isCorrect: boolean }) => option.isCorrect,
         )?.id as string;
         expect(correctOptionId).toEqual(expect.any(String));
+
+        const ratingQuestionResponse = await asAdmin(
+          request(app).post("/api/admin/questions"),
+        ).send({
+          eventDayId: eventId,
+          title: "Como você avalia o evento?",
+          type: "rating",
+          required: true,
+          scored: false,
+          sortOrder: 2,
+          active: true,
+          alternatives: [
+            { text: "Ruim", ratingValue: 1 },
+            { text: "Excelente", ratingValue: 5 },
+          ],
+        });
+        expect(ratingQuestionResponse.status).toBe(201);
+        const ratingQuestionId = ratingQuestionResponse.body.id as string;
+        const excellentOptionId = ratingQuestionResponse.body.alternatives.find(
+          (option: { ratingValue?: number }) => option.ratingValue === 5,
+        )?.id as string;
+        expect(excellentOptionId).toEqual(expect.any(String));
 
         const participantLogin = await participantAgent
           .post("/api/auth/login")
@@ -208,6 +251,10 @@ integration("API integrada com MariaDB", () => {
         ).send({
           answers: {
             [questionId]: { alternativeId: correctOptionId },
+            [ratingQuestionId]: {
+              alternativeId: excellentOptionId,
+              rating: 5,
+            },
           },
           suggestions: {},
         });
@@ -218,6 +265,80 @@ integration("API integrada com MariaDB", () => {
           percentage: 100,
           perfectScore: true,
         });
+
+        const persistedAnswers = await rows<
+          Array<RowDataPacket & {
+            question_id: string;
+            selected_option_id: string | null;
+          }>
+        >(
+          `SELECT pa.question_id,pa.selected_option_id
+           FROM participation_answers pa
+           JOIN participations p ON p.id=pa.participation_id
+           WHERE p.user_id=? AND p.event_day_id=? AND pa.deleted_at IS NULL`,
+          [participantId, eventId],
+        );
+        expect(persistedAnswers).toHaveLength(2);
+        expect(persistedAnswers).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            question_id: questionId,
+            selected_option_id: correctOptionId,
+          }),
+          expect.objectContaining({
+            question_id: ratingQuestionId,
+            selected_option_id: excellentOptionId,
+          }),
+        ]));
+
+        const listedParticipations = await asAdmin(
+          request(app)
+            .get("/api/admin/participations")
+            .query({ userId: participantId, eventDayId: eventId }),
+        );
+        expect(listedParticipations.status).toBe(200);
+        expect(listedParticipations.body[0].answers[questionId]).toEqual({
+          alternativeId: correctOptionId,
+        });
+        expect(listedParticipations.body[0].answers[ratingQuestionId]).toEqual({
+          alternativeId: excellentOptionId,
+          rating: 5,
+        });
+
+        const reset = await asAdmin(
+          request(app).post("/api/admin/users/reset-participations"),
+        ).send({ userIds: [participantId], eventDayId: eventId });
+        expect(reset.status).toBe(200);
+        expect(reset.body).toMatchObject({
+          affectedUsers: 1,
+          resetParticipations: 1,
+        });
+
+        const afterReset = await asAdmin(
+          request(app)
+            .get("/api/admin/participations")
+            .query({ userId: participantId, eventDayId: eventId }),
+        );
+        expect(afterReset.status).toBe(200);
+        expect(afterReset.body[0]).toMatchObject({
+          status: "in_progress",
+          answers: {},
+          perfectScore: false,
+        });
+
+        const resubmittedQuiz = await asParticipant(
+          request(app).post(`/api/events/${eventId}/quiz`),
+        ).send({
+          answers: {
+            [questionId]: { alternativeId: correctOptionId },
+            [ratingQuestionId]: {
+              alternativeId: excellentOptionId,
+              rating: 5,
+            },
+          },
+          suggestions: {},
+        });
+        expect(resubmittedQuiz.status).toBe(200);
+        expect(resubmittedQuiz.body.perfectScore).toBe(true);
 
         const drawCriteria = {
           scope: { type: "day", eventDayId: eventId },
@@ -276,6 +397,17 @@ integration("API integrada com MariaDB", () => {
         expect(persisted[0]?.status).toBe("submitted");
         expect(Boolean(persisted[0]?.perfect_score)).toBe(true);
         expect(persisted[0]?.attendance_validated_at).toBeInstanceOf(Date);
+
+        const deletedUsers = await asAdmin(
+          request(app).post("/api/admin/users/bulk-delete"),
+        ).send({ userIds: [participantId] });
+        expect(deletedUsers.status).toBe(200);
+        expect(deletedUsers.body).toEqual({ affectedUsers: 1 });
+
+        const deletedUser = await asAdmin(
+          request(app).get(`/api/admin/users/${participantId}`),
+        );
+        expect(deletedUser.status).toBe(404);
       } finally {
         await pool.end();
       }

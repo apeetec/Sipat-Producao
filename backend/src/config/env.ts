@@ -22,6 +22,7 @@ const schema = z
     .string()
     .regex(/^\/[a-z0-9/_-]*$/i)
     .default("/api"),
+  PUBLIC_BASE_URL: z.string().url().optional(),
   DATABASE_HOST: z.string().min(1),
   DATABASE_PORT: z.coerce.number().int().min(1).max(65535).default(3306),
   DATABASE_NAME: z.string().regex(/^[a-zA-Z0-9_]+$/),
@@ -99,6 +100,7 @@ export const env = {
   ...result.data,
   // XAMPP local costuma usar root sem senha. Produção é bloqueada acima.
   DATABASE_PASSWORD: result.data.DATABASE_PASSWORD ?? "",
+  publicBaseUrl: result.data.PUBLIC_BASE_URL?.replace(/\/$/, ""),
   isProduction: result.data.NODE_ENV === "production",
   corsOrigins: result.data.CORS_ORIGINS.split(",")
     .map((origin) => origin.trim())

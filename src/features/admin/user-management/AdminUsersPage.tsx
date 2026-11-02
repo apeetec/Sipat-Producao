@@ -22,6 +22,8 @@ import {
   UserCheck,
   UserX,
   FileCheck,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 
 export const AdminUsersPage: React.FC = () => {
@@ -32,6 +34,8 @@ export const AdminUsersPage: React.FC = () => {
   const [unitFilter, setUnitFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [batchAction, setBatchAction] = useState<'reset' | 'delete' | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -195,6 +199,45 @@ export const AdminUsersPage: React.FC = () => {
     loadData();
   };
 
+  const toggleSelectedUser = (userId: string) => {
+    setSelectedUserIds(current =>
+      current.includes(userId)
+        ? current.filter(id => id !== userId)
+        : [...current, userId],
+    );
+  };
+
+  const handleResetParticipations = async () => {
+    if (!selectedUserIds.length) return;
+    if (!window.confirm(`Resetar as respostas de ${selectedUserIds.length} usuário(s)? Eles poderão responder novamente sem perder a presença ou o progresso do vídeo.`)) return;
+    try {
+      setBatchAction('reset');
+      const result = await userRepository.resetParticipations(selectedUserIds);
+      toast.success(`${result.resetParticipations} participação(ões) resetada(s) com sucesso.`);
+      setSelectedUserIds([]);
+    } catch (error: any) {
+      toast.error(error.message || 'Não foi possível resetar as respostas.');
+    } finally {
+      setBatchAction(null);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!selectedUserIds.length) return;
+    if (!window.confirm(`Excluir ${selectedUserIds.length} usuário(s)? O histórico será preservado para auditoria, mas eles perderão o acesso ao sistema.`)) return;
+    try {
+      setBatchAction('delete');
+      const result = await userRepository.deleteMany(selectedUserIds);
+      toast.success(`${result.affectedUsers} usuário(s) excluído(s) com sucesso.`);
+      setSelectedUserIds([]);
+      await loadData();
+    } catch (error: any) {
+      toast.error(error.message || 'Não foi possível excluir os usuários.');
+    } finally {
+      setBatchAction(null);
+    }
+  };
+
   // Filter users
   const filteredUsers = users.filter(u => {
     if (unitFilter !== 'all' && u.unitId !== unitFilter) return false;
@@ -213,6 +256,15 @@ export const AdminUsersPage: React.FC = () => {
 
   const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
   const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
+  const selectablePageIds = paginatedUsers.filter(user => user.id !== currentUser?.id).map(user => user.id);
+  const allPageUsersSelected = selectablePageIds.length > 0 && selectablePageIds.every(id => selectedUserIds.includes(id));
+
+  const toggleCurrentPage = () => {
+    setSelectedUserIds(current => {
+      if (allPageUsersSelected) return current.filter(id => !selectablePageIds.includes(id));
+      return [...new Set([...current, ...selectablePageIds])];
+    });
+  };
 
   return (
     <AdminShell
@@ -269,11 +321,50 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         </div>
 
+        {selectedUserIds.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <span className="text-xs font-semibold text-emerald-900">
+              {selectedUserIds.length} usuário(s) selecionado(s)
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                loading={batchAction === 'reset'}
+                disabled={batchAction !== null}
+                onClick={handleResetParticipations}
+                icon={<RotateCcw className="h-3.5 w-3.5" />}
+              >
+                Resetar respostas
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                loading={batchAction === 'delete'}
+                disabled={batchAction !== null}
+                onClick={handleDeleteSelected}
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+              >
+                Excluir selecionados
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Users Table */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
           <table className="w-full text-left text-xs text-slate-700">
             <thead className="bg-[#323f3c] text-white uppercase text-[10px] tracking-wider">
               <tr>
+                <th className="py-3 px-4 w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="Selecionar usuários desta página"
+                    checked={allPageUsersSelected}
+                    onChange={toggleCurrentPage}
+                    className="h-4 w-4 rounded border-slate-300 text-[#028056] focus:ring-[#028056]"
+                  />
+                </th>
                 <th className="py-3 px-4">Matrícula</th>
                 <th className="py-3 px-4">Nome Completo & E-mail</th>
                 <th className="py-3 px-4">Unidade / Empresa</th>
@@ -287,6 +378,16 @@ export const AdminUsersPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {paginatedUsers.map(u => (
                 <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="py-3 px-4">
+                    <input
+                      type="checkbox"
+                      aria-label={`Selecionar ${u.displayName}`}
+                      checked={selectedUserIds.includes(u.id)}
+                      disabled={u.id === currentUser?.id || batchAction !== null}
+                      onChange={() => toggleSelectedUser(u.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-[#028056] focus:ring-[#028056] disabled:opacity-40"
+                    />
+                  </td>
                   <td className="py-3 px-4 font-mono font-bold text-slate-900">{u.employeeNumber}</td>
                   <td className="py-3 px-4">
                     <span className="font-bold text-slate-800 block">{u.displayName}</span>

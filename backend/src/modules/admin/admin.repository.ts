@@ -5,6 +5,7 @@ import { env } from "../../config/env.js";
 import { execute, rows, transaction } from "../../database/pool.js";
 import { notFound, conflict } from "../../shared/errors.js";
 import { sanitizeRichHtml } from "../../shared/security.js";
+import { canonicalPublicUrl } from "../../shared/public-url.js";
 import { toPublicUser } from "../auth/auth.service.js";
 import type { UserRow } from "../auth/auth.repository.js";
 
@@ -35,13 +36,13 @@ function mapEvent(row: RowDataPacket) {
     timezone: row.timezone ?? "America/Sao_Paulo",
     opensAt: iso(row.opens_at)!,
     closesAt: iso(row.closes_at)!,
-    videoUrl: row.video_url ?? undefined,
+    videoUrl: canonicalPublicUrl(row.video_url),
     videoStoragePath: row.video_storage_path ?? undefined,
     videoEmbedUrl: row.video_embed_url ?? undefined,
     videoType: row.video_type ?? undefined,
     videoAttachmentName: row.video_attachment_name ?? undefined,
-    cardCoverImageUrl: row.card_cover_image_url ?? undefined,
-    bannerImageUrl: row.banner_image_url ?? undefined,
+    cardCoverImageUrl: canonicalPublicUrl(row.card_cover_image_url),
+    bannerImageUrl: canonicalPublicUrl(row.banner_image_url),
     attendanceCodeLength: row.attendance_code_length,
     active: Boolean(row.active),
     countsForFullWeek: Boolean(row.counts_for_full_week),
@@ -208,6 +209,110 @@ export class AdminRepository {
     );
   }
 
+  async deactivateUsers(
+    userIds: string[],
+    organizationId: string,
+    actorUserId: string,
+  ) {
+    const ids = [...new Set(userIds)];
+    if (ids.includes(actorUserId))
+      throw conflict("Você não pode excluir seu próprio usuário em sessão.");
+
+    return transaction(async (db) => {
+      const marks = ids.map(() => "?").join(",");
+      const selected = await rows<RowDataPacket[]>(
+        `SELECT id,role,active FROM users WHERE organization_id=? AND id IN (${marks}) AND deleted_at IS NULL FOR UPDATE`,
+        [organizationId, ...ids],
+        db,
+      );
+      if (selected.length !== ids.length)
+        throw notFound("Um ou mais usuários");
+
+      const selectedActiveAdmins = selected.filter(
+        (user) => user.role === "admin" && user.active,
+      ).length;
+      if (selectedActiveAdmins > 0) {
+        const activeAdmins = await rows<(RowDataPacket & { count: number })[]>(
+          'SELECT COUNT(*) count FROM users WHERE organization_id=? AND role="admin" AND active=1 AND deleted_at IS NULL FOR UPDATE',
+          [organizationId],
+          db,
+        );
+        if ((activeAdmins[0]?.count ?? 0) - selectedActiveAdmins < 1)
+          throw conflict("O último administrador ativo não pode ser excluído.");
+      }
+
+      await execute(
+        `UPDATE users SET active=0,deleted_at=UTC_TIMESTAMP(3) WHERE organization_id=? AND id IN (${marks}) AND deleted_at IS NULL`,
+        [organizationId, ...ids],
+        db,
+      );
+      await execute(
+        `UPDATE auth_refresh_tokens SET revoked_at=COALESCE(revoked_at,UTC_TIMESTAMP(3)) WHERE user_id IN (${marks})`,
+        ids,
+        db,
+      );
+      return { affectedUsers: selected.length };
+    });
+  }
+
+  async resetUserParticipations(
+    userIds: string[],
+    organizationId: string,
+    campaignId: string,
+    eventDayId?: string,
+  ) {
+    const ids = [...new Set(userIds)];
+    return transaction(async (db) => {
+      const userMarks = ids.map(() => "?").join(",");
+      const scopedUsers = await rows<RowDataPacket[]>(
+        `SELECT id FROM users WHERE organization_id=? AND id IN (${userMarks}) AND deleted_at IS NULL`,
+        [organizationId, ...ids],
+        db,
+      );
+      if (scopedUsers.length !== ids.length)
+        throw notFound("Um ou mais usuários");
+
+      const values: unknown[] = [campaignId, ...ids];
+      let eventFilter = "";
+      if (eventDayId) {
+        eventFilter = " AND p.event_day_id=?";
+        values.push(eventDayId);
+      }
+      const participations = await rows<RowDataPacket[]>(
+        `SELECT p.id FROM participations p
+         JOIN event_days e ON e.id=p.event_day_id
+         WHERE e.campaign_id=? AND p.user_id IN (${userMarks})
+           AND p.deleted_at IS NULL${eventFilter} FOR UPDATE`,
+        values,
+        db,
+      );
+      if (!participations.length)
+        return { affectedUsers: 0, resetParticipations: 0 };
+
+      const participationIds = participations.map((item) => item.id);
+      const participationMarks = participationIds.map(() => "?").join(",");
+      await execute(
+        `DELETE FROM participation_answers WHERE participation_id IN (${participationMarks})`,
+        participationIds,
+        db,
+      );
+      // O desbloqueio por presença/vídeo é preservado. Apenas a submissão e a
+      // pontuação são zeradas, permitindo que o colaborador responda novamente.
+      await execute(
+        `UPDATE participations SET status='in_progress',submitted_at=NULL,
+         correct_count=NULL,scored_question_count=NULL,percentage=NULL,
+         perfect_score=0,updated_at=UTC_TIMESTAMP(3)
+         WHERE id IN (${participationMarks})`,
+        participationIds,
+        db,
+      );
+      return {
+        affectedUsers: ids.length,
+        resetParticipations: participationIds.length,
+      };
+    });
+  }
+
   async listUnits(organizationId: string) {
     return (
       await rows<RowDataPacket[]>(
@@ -308,12 +413,12 @@ export class AdminRepository {
           id: s.id,
           name: s.name,
           role: s.role_title ?? undefined,
-          imageUrl: s.image_url ?? undefined,
+          imageUrl: canonicalPublicUrl(s.image_url),
         }));
       e.unitVideoOverrides = Object.fromEntries(
         videos
           .filter((v) => v.event_day_id === e.id)
-          .map((v) => [v.unit_id, v.video_url]),
+          .map((v) => [v.unit_id, canonicalPublicUrl(v.video_url)]),
       );
     }
   }
@@ -550,6 +655,7 @@ export class AdminRepository {
         let order = 0;
         for (const a of d.alternatives) {
           const aid = a.id ?? randomUUID();
+          const optionOrder = order++;
           await execute(
             `INSERT INTO question_options(id,question_id,text,is_correct,rating_value,sort_order,deleted_at) VALUES(?,?,?,?,?,?,NULL) ON DUPLICATE KEY UPDATE text=VALUES(text),is_correct=VALUES(is_correct),rating_value=VALUES(rating_value),sort_order=VALUES(sort_order),deleted_at=NULL`,
             [
@@ -557,8 +663,8 @@ export class AdminRepository {
               qid,
               a.text,
               bool(a.isCorrect),
-              a.ratingValue ?? null,
-              order++,
+              a.ratingValue ?? (d.type === "rating" ? optionOrder + 1 : null),
+              optionOrder,
             ],
             db,
           );
