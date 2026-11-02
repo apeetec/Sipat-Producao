@@ -1,0 +1,61 @@
+name: Build frontend for Hostinger
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hostinger-frontend-production
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    name: Test, build and publish dist
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build production frontend
+        run: npm run build
+        env:
+          VITE_API_URL: https://backendportfolio.khalifadeveloper.com.br
+
+      - name: Validate production artifacts
+        shell: bash
+        run: |
+          test -f dist/index.html
+          test -f dist/.htaccess
+          test -d dist/assets
+          if grep -q '/src/main.tsx' dist/index.html; then
+            echo 'The production index still references Vite source files.' >&2
+            exit 1
+          fi
+
+      - name: Publish dist to hostinger-frontend branch
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: hostinger-frontend
+          publish_dir: ./dist
+          keep_files: false
+          full_commit_message: "deploy(frontend): ${{ github.sha }}"
