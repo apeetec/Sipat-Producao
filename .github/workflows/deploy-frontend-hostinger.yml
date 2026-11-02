@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -33,7 +33,10 @@ jobs:
         run: npm ci
 
       - name: Run frontend tests
-        run: npm test
+        # The backend owns an independent package-lock and test suite. Limiting
+        # this command prevents Vitest from collecting backend tests before the
+        # backend dependencies have been installed.
+        run: npm test -- tests/unit
 
       - name: Build production frontend
         run: npm run build
