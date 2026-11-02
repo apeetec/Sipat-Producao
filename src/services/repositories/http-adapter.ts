@@ -1,6 +1,7 @@
 import type { AppSettings, AppUser, AuditLog, AccessLog, Draw, EventDay, Participation, Question, Regulation, Unit } from '../../types';
 import type { IAuditRepository, IDrawRepository, IEventRepository, IParticipationRepository, IQuestionRepository, ISettingsRepository, IUnitRepository, IUserRepository } from './interfaces';
 import { request } from '../api/node-backend-client';
+import { buildQuestionPayload } from './question-payload';
 
 const query = (values: Record<string, unknown>) => {
   const params = new URLSearchParams();
@@ -56,8 +57,18 @@ export class HttpQuestionRepository implements IQuestionRepository {
   getById(id: string) { return request<Question>(`/api/admin/questions/${id}`).catch(() => null); }
   listByDay(eventDayId: string) { return request<Question[]>(`/api/admin/questions?eventDayId=${encodeURIComponent(eventDayId)}`); }
   listAll() { return request<Question[]>('/api/admin/questions'); }
-  create(question: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>) { return request<Question>('/api/admin/questions', { method: 'POST', body: JSON.stringify(question) }); }
-  update(id: string, updates: Partial<Question>) { return request<Question>(`/api/admin/questions/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }); }
+  create(question: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>) {
+    return request<Question>('/api/admin/questions', {
+      method: 'POST',
+      body: JSON.stringify(buildQuestionPayload(question, false)),
+    });
+  }
+  update(id: string, updates: Partial<Question>) {
+    return request<Question>(`/api/admin/questions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(buildQuestionPayload(updates, true)),
+    });
+  }
   async delete(id: string) { await request<void>(`/api/admin/questions/${id}`, { method: 'DELETE' }); }
 }
 

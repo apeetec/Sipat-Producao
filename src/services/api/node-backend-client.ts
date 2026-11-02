@@ -84,6 +84,16 @@ export async function request<T>(endpoint: string, options: RequestInit = {}, ca
     try {
       const errorJson = await response.json();
       errorMessage = errorJson?.error?.message || errorJson?.message || errorMessage;
+      const validationDetails = errorJson?.error?.details;
+      if (Array.isArray(validationDetails) && validationDetails.length > 0) {
+        const fields = validationDetails
+          .map((detail: { field?: string; message?: string }) =>
+            [detail.field, detail.message].filter(Boolean).join(': '),
+          )
+          .filter(Boolean)
+          .join('; ');
+        if (fields) errorMessage = `${errorMessage} ${fields}`;
+      }
     } catch {
       // Falha ao parsear JSON de erro
     }
