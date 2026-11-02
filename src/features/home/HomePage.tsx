@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { eventRepository, participationRepository } from '../../services/repositories';
 import { EventDay, Participation } from '../../types';
@@ -6,6 +6,7 @@ import { EventDayCard } from './EventDayCard';
 import { AppShell } from '../../components/layout/AppShell';
 import { Trophy, CheckCircle, Calendar, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { groupSessionsByDate } from '../../utils/event-sessions';
 
 export const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -36,8 +37,13 @@ export const HomePage: React.FC = () => {
     loadData();
   }, [user]);
 
-  const completedCount = Object.values(participations).filter(p => p.status === 'submitted').length;
-  const perfectCount = Object.values(participations).filter(p => p.status === 'submitted' && p.perfectScore).length;
+  const dateGroups = useMemo(() => groupSessionsByDate(days), [days]);
+  const completedCount = days.filter(day => participations[day.id]?.status === 'submitted').length;
+  const perfectCount = days.filter(day => participations[day.id]?.status === 'submitted' && participations[day.id]?.perfectScore).length;
+  const eligibleSessions = days.filter(day => day.active && day.countsForFullWeek);
+  const completedFullProgram = eligibleSessions.length > 0 && eligibleSessions.every(
+    day => participations[day.id]?.status === 'submitted' && participations[day.id]?.perfectScore,
+  );
 
   return (
     <AppShell>
@@ -70,7 +76,7 @@ export const HomePage: React.FC = () => {
                 <span className="text-lg font-extrabold text-slate-900 block leading-tight">
                   {completedCount} / {days.length}
                 </span>
-                <span className="text-[11px] text-slate-500">Dias Respondidos</span>
+                <span className="text-[11px] text-slate-500">Sessões Respondidas</span>
               </div>
             </div>
 
@@ -93,8 +99,8 @@ export const HomePage: React.FC = () => {
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
             <span>
-              {perfectCount >= 5 ? (
-                <strong className="text-emerald-700">Parabéns! Você gabaritou todos os dias e está concorrendo ao Grande Prêmio da Semana Completa!</strong>
+              {completedFullProgram ? (
+                <strong className="text-emerald-700">Parabéns! Você gabaritou todas as sessões elegíveis e está concorrendo ao Grande Prêmio da Semana Completa!</strong>
               ) : (
                 <span>Complete todas as sessões para maximizar suas chances nos sorteios diários e da semana.</span>
               )}
@@ -110,7 +116,7 @@ export const HomePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid of Days (5 columns on desktop, 2 on tablet, 1 on mobile) */}
+      {/* Sessions are grouped by their calendar date; any date may contain several sessions. */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -126,15 +132,35 @@ export const HomePage: React.FC = () => {
               <div key={i} className="h-64 bg-white rounded-2xl animate-pulse border border-slate-200/80" />
             ))}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {days.map(day => (
-              <EventDayCard
-                key={day.id}
-                day={day}
-                participation={participations[day.id]}
-              />
+        ) : dateGroups.length > 0 ? (
+          <div className="space-y-7">
+            {dateGroups.map(group => (
+              <section key={group.key} className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                  <div>
+                    <h4 className="font-bold text-slate-900">{group.weekdayLabel}</h4>
+                    <p className="text-xs text-slate-500">{group.dateLabel}</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                    {group.sessions.length} {group.sessions.length === 1 ? 'sessão' : 'sessões'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {group.sessions.map((day, index) => (
+                    <EventDayCard
+                      key={day.id}
+                      day={day}
+                      sessionNumber={index + 1}
+                      participation={participations[day.id]}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+            Nenhuma sessão está disponível na programação.
           </div>
         )}
       </div>

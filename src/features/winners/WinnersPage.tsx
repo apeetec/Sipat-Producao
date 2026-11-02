@@ -162,7 +162,7 @@ export const WinnersPage: React.FC = () => {
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              {d.name} (Dia {d.sortOrder})
+              {d.dateLabel} — {d.name}
             </button>
           ))}
         </div>

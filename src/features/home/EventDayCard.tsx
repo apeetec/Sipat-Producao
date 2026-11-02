@@ -6,9 +6,10 @@ import { Calendar, CheckCircle2, Clock, PlayCircle, Lock, Film } from 'lucide-re
 export interface EventDayCardProps {
   day: EventDay;
   participation?: Participation | null;
+  sessionNumber?: number;
 }
 
-export const EventDayCard: React.FC<EventDayCardProps> = ({ day, participation }) => {
+export const EventDayCard: React.FC<EventDayCardProps> = ({ day, participation, sessionNumber = 1 }) => {
   const now = new Date().getTime();
   const opensAtTime = new Date(day.opensAt).getTime();
   const closesAtTime = new Date(day.closesAt).getTime();
@@ -76,7 +77,7 @@ export const EventDayCard: React.FC<EventDayCardProps> = ({ day, participation }
                 <span className="font-bold text-xs sm:text-sm tracking-tight drop-shadow-xs">{day.name}</span>
               </div>
               <span className="text-[10px] text-emerald-300 font-bold bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-xs">
-                Dia 0{day.sortOrder}
+                Sessão {String(sessionNumber).padStart(2, '0')}
               </span>
             </div>
           </div>
@@ -86,7 +87,9 @@ export const EventDayCard: React.FC<EventDayCardProps> = ({ day, participation }
               <Calendar className="w-4 h-4 text-[#66bd39]" />
               <span className="font-bold text-sm tracking-tight">{day.name}</span>
             </div>
-            <span className="text-[11px] text-emerald-200 font-medium">Dia 0{day.sortOrder}</span>
+            <span className="text-[11px] text-emerald-200 font-medium">
+              Sessão {String(sessionNumber).padStart(2, '0')}
+            </span>
           </div>
         )}
 

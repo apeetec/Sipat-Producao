@@ -239,7 +239,7 @@ export const AdminQuestionsPage: React.FC = () => {
             <Select
               options={[
                 { value: 'all', label: 'Todos os Dias' },
-                ...days.map(d => ({ value: d.id, label: `${d.name} (Dia ${d.sortOrder})` })),
+                ...days.map(d => ({ value: d.id, label: `${d.dateLabel} — ${d.name} (/${d.slug})` })),
               ]}
               value={selectedDayFilter}
               onChange={e => setSelectedDayFilter(e.target.value)}

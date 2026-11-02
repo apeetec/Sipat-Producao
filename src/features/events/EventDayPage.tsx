@@ -250,7 +250,7 @@ export const EventDayPage: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-bold tracking-widest uppercase bg-[#66bd39] text-[#014730] px-2 py-0.5 rounded-sm">
-                    Dia {day.sortOrder}
+                    Sessão
                   </span>
                   <span className="text-xs text-slate-300">{day.dateLabel}</span>
                 </div>
@@ -365,7 +365,7 @@ export const EventDayPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-[#028056]" />
                 <h3 className="text-lg font-bold font-display text-slate-900">
-                  Questionário Oficial do Dia {day.sortOrder}
+                  Questionário Oficial da Sessão
                 </h3>
               </div>
               <span className="text-xs text-slate-500">

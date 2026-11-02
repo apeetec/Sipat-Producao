@@ -4,6 +4,7 @@ import { EventDay, Unit } from '../../../types';
 import { AdminShell } from '../../../components/layout/AdminShell';
 import { Button } from '../../../components/ui/Button';
 import { TextField } from '../../../components/ui/TextField';
+import { Select } from '../../../components/ui/Select';
 import { Modal } from '../../../components/ui/Modal';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { Alert } from '../../../components/ui/Alert';
@@ -12,6 +13,12 @@ import { toast } from '../../../components/feedback/ToastContainer';
 import { sha256Hex } from '../../../utils/security';
 import { isNodeBackendEnabled, NodeUploadsApi } from '../../../services/api/node-backend-client';
 import { formatDateToSaoPaulo } from '../../../utils/formatters';
+import {
+  groupSessionsByDate,
+  makeUniqueSessionSlug,
+  slugifySessionName,
+  toDateTimeLocalValue,
+} from '../../../utils/event-sessions';
 import {
   Calendar,
   Plus,
@@ -41,6 +48,7 @@ export const AdminEventsPage: React.FC = () => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [dateLabel, setDateLabel] = useState('');
+  const [groupingEventId, setGroupingEventId] = useState('');
   const [attraction, setAttraction] = useState('');
   const [theme, setTheme] = useState('');
   const [opensAt, setOpensAt] = useState('');
@@ -95,10 +103,11 @@ export const AdminEventsPage: React.FC = () => {
     setName('');
     setSlug('');
     setDateLabel('');
+    setGroupingEventId('');
     setAttraction('');
     setTheme('');
-    setOpensAt(new Date().toISOString().slice(0, 16));
-    setClosesAt(new Date(Date.now() + 86400000).toISOString().slice(0, 16));
+    setOpensAt(toDateTimeLocalValue(new Date().toISOString()));
+    setClosesAt(toDateTimeLocalValue(new Date(Date.now() + 86400000).toISOString()));
     setVideoSourceType('url');
     setVideoUrl('');
     setVideoAttachmentName('');
@@ -124,10 +133,11 @@ export const AdminEventsPage: React.FC = () => {
     setName(day.name);
     setSlug(day.slug);
     setDateLabel(day.dateLabel);
+    setGroupingEventId(day.parentId || '');
     setAttraction(day.attraction || '');
     setTheme(day.theme || '');
-    setOpensAt(new Date(day.opensAt).toISOString().slice(0, 16));
-    setClosesAt(new Date(day.closesAt).toISOString().slice(0, 16));
+    setOpensAt(toDateTimeLocalValue(day.opensAt));
+    setClosesAt(toDateTimeLocalValue(day.closesAt));
     
     // Video
     if (day.videoAttachmentDataUrl || day.videoType === 'attachment') {
@@ -232,6 +242,13 @@ export const AdminEventsPage: React.FC = () => {
     const openDate = new Date(opensAt);
     const closeDate = new Date(closesAt);
 
+    if (Number.isNaN(openDate.getTime()) || Number.isNaN(closeDate.getTime())) {
+      setModalError('Informe datas e horários válidos para a sessão.');
+      return;
+    }
+
+    const finalSlug = makeUniqueSessionSlug(slug || name, days, openDate.toISOString(), editingDay?.id);
+
     if (openDate.getTime() >= closeDate.getTime()) {
       setModalError('A data/hora de abertura deve ser anterior ao encerramento.');
       return;
@@ -267,7 +284,7 @@ export const AdminEventsPage: React.FC = () => {
       if (editingDay) {
         await eventRepository.update(editingDay.id, {
           name,
-          slug,
+          slug: finalSlug,
           dateLabel,
           attraction,
           theme,
@@ -286,12 +303,13 @@ export const AdminEventsPage: React.FC = () => {
           attendanceCodeLength,
           ...(isNodeBackendEnabled && newAttendanceCode.trim() ? { attendanceCode: newAttendanceCode.trim().toUpperCase() } : {}),
         });
-        toast.success('Dia e sessão atualizados com sucesso!');
+        toast.success('Sessão atualizada com sucesso!');
       } else {
         await eventRepository.create({
           name,
-          slug,
+          slug: finalSlug,
           dateLabel,
+          parentId: groupingEventId || undefined,
           attraction,
           theme,
           timezone: 'America/Sao_Paulo',
@@ -311,7 +329,7 @@ export const AdminEventsPage: React.FC = () => {
           sortOrder: days.length + 1,
           ...(isNodeBackendEnabled && newAttendanceCode.trim() ? { attendanceCode: newAttendanceCode.trim().toUpperCase() } : {}),
         });
-        toast.success('Novo dia e sessão cadastrados com sucesso!');
+        toast.success('Nova sessão cadastrada com sucesso!');
       }
 
       setIsModalOpen(false);
@@ -321,6 +339,20 @@ export const AdminEventsPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const dateGroups = groupSessionsByDate(days);
+
+  const handleDateGroupChange = (eventId: string) => {
+    setGroupingEventId(eventId);
+    if (!eventId) return;
+
+    const reference = days.find(day => day.id === eventId);
+    if (!reference) return;
+
+    setDateLabel(reference.dateLabel);
+    setOpensAt(toDateTimeLocalValue(reference.opensAt));
+    setClosesAt(toDateTimeLocalValue(reference.closesAt));
   };
 
   const handleToggleArchive = async (day: EventDay) => {
@@ -343,7 +375,7 @@ export const AdminEventsPage: React.FC = () => {
       subtitle="Cadastre horários de abertura e fechamento, palestrantes, vídeos anexados com preview, artes do card e códigos de presença"
       actions={
         <Button variant="action" size="md" onClick={openCreateModal} icon={<Plus className="w-4 h-4" />}>
-          Novo Dia / Sessão
+          Nova Sessão
         </Button>
       }
     >
@@ -468,23 +500,39 @@ export const AdminEventsPage: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingDay ? `Editar Dia: ${editingDay.name}` : 'Cadastrar Novo Dia / Sessão'}
+        title={editingDay ? `Editar Sessão: ${editingDay.name}` : 'Cadastrar Nova Sessão'}
         description="Defina os dados da sessão, anexe o vídeo oficial com preview e a arte gráfica para o card"
         maxWidth="2xl"
       >
         <form onSubmit={handleSave} className="space-y-6">
           {modalError && <Alert variant="danger">{modalError}</Alert>}
 
+          {!editingDay && (
+            <Select
+              label="Data agrupadora"
+              value={groupingEventId}
+              onChange={event => handleDateGroupChange(event.target.value)}
+              options={[
+                { value: '', label: 'Criar em uma nova data' },
+                ...dateGroups.map(group => ({
+                  value: group.sessions[0].id,
+                  label: `${group.weekdayLabel} — ${group.dateLabel} (${group.sessions.length} ${group.sessions.length === 1 ? 'sessão' : 'sessões'})`,
+                })),
+              ]}
+              helperText="Selecione qualquer data existente para adicionar outra sessão independente a ela. Os horários podem ser alterados depois da seleção."
+            />
+          )}
+
           {/* Dados Principais */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <TextField
-              label="Nome do Dia / Sessão"
-              placeholder="Ex: Segunda-feira ou Sessão de Abertura"
+              label="Nome da Sessão"
+              placeholder="Ex: Abertura, Ergonomia ou Segurança no Trânsito"
               value={name}
               onChange={e => {
                 setName(e.target.value);
                 if (!editingDay) {
-                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'));
+                  setSlug(slugifySessionName(e.target.value));
                 }
               }}
               required
@@ -494,6 +542,7 @@ export const AdminEventsPage: React.FC = () => {
               placeholder="ex: segunda-feira"
               value={slug}
               onChange={e => setSlug(e.target.value)}
+              helperText="Se outra sessão já usar esse endereço, o sistema acrescentará o horário automaticamente."
               required
             />
           </div>
@@ -816,13 +865,13 @@ export const AdminEventsPage: React.FC = () => {
           <div className="space-y-3 pt-2 border-t border-slate-200">
             <Checkbox
               id="countsForFullWeek"
-              label="Conta para o sorteio da Semana Completa (5 dias de 100% acertos)"
+              label="Conta para o sorteio da programação completa (100% de acertos nesta sessão)"
               checked={countsForFullWeek}
               onChange={e => setCountsForFullWeek(e.target.checked)}
             />
             <Checkbox
               id="activeDay"
-              label="Dia ativo e visível na programação"
+              label="Sessão ativa e visível na programação"
               checked={active}
               onChange={e => setActive(e.target.checked)}
             />
@@ -834,7 +883,7 @@ export const AdminEventsPage: React.FC = () => {
               Cancelar
             </Button>
             <Button type="submit" variant="action" loading={isSaving}>
-              Salvar Dia e Sessão
+              Salvar Sessão
             </Button>
           </div>
         </form>

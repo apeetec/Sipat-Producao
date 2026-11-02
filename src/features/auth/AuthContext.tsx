@@ -31,7 +31,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initAuth = async () => {
       try {
         if (isNodeBackendEnabled) {
-          try { setUser(await NodeAuthApi.restore()); } catch { setUser(null); }
+          // Evita chamar /refresh para visitantes que nunca iniciaram sessão.
+          // O marcador contém apenas o ID público; os tokens continuam em
+          // memória/cookie HttpOnly e nunca são gravados no localStorage.
+          if (!localStorage.getItem(SESSION_KEY)) {
+            setUser(null);
+            return;
+          }
+          try {
+            setUser(await NodeAuthApi.restore());
+          } catch {
+            localStorage.removeItem(SESSION_KEY);
+            setUser(null);
+          }
           return;
         }
         const storedId = localStorage.getItem(SESSION_KEY);
@@ -58,6 +70,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (isNodeBackendEnabled) {
         const result = await NodeAuthApi.login(employeeNumber, passwordAttempt);
         setUser(result.user);
+        localStorage.setItem(SESSION_KEY, result.user.id);
         return { success: true };
       }
       const res = await backendService.resolveEmployeeLogin(employeeNumber, passwordAttempt);
