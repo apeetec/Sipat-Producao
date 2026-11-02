@@ -28,12 +28,12 @@ export const AdminShell: React.FC<{
             onClick={() => setMobileSidebarOpen(false)}
             aria-hidden="true"
           />
-          <div className="relative z-10 w-72 h-full flex flex-col bg-[#015237] shadow-2xl">
+          <div className="relative z-10 flex h-dvh w-[min(18rem,calc(100vw-3.5rem))] flex-col bg-[#015237] shadow-2xl">
             <AdminSidebar onCloseMobile={() => setMobileSidebarOpen(false)} />
           </div>
           <button
             onClick={() => setMobileSidebarOpen(false)}
-            className="p-3 text-white absolute top-2 right-2 cursor-pointer hover:bg-white/10 rounded-lg transition-colors"
+            className="absolute right-1 top-[max(0.5rem,env(safe-area-inset-top))] inline-flex size-11 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/10 cursor-pointer"
             aria-label="Fechar menu"
           >
             <X className="w-6 h-6" />
@@ -83,12 +83,12 @@ export const AdminShell: React.FC<{
         {/* Page Header (if title exists) */}
         {(title || subtitle || actions) && (
           <div className="shrink-0 bg-white border-b border-slate-200 px-4 sm:px-8 py-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                {title && <h1 className="text-xl sm:text-2xl font-bold font-display text-slate-900 tracking-tight">{title}</h1>}
-                {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                {title && <h1 className="text-balance text-xl font-bold font-display text-slate-900 sm:text-2xl">{title}</h1>}
+                {subtitle && <p className="mt-1 text-pretty text-xs text-slate-500">{subtitle}</p>}
               </div>
-              {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
+              {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{actions}</div>}
             </div>
           </div>
         )}

@@ -55,9 +55,13 @@ export function DatePicker({
             disabled={disabled}
             aria-required={required}
             aria-invalid={Boolean(error)}
-            className={cn('w-full justify-start text-left font-normal', !selected && 'text-slate-500')}
+            icon={<CalendarIcon className="size-4 shrink-0" aria-hidden="true" />}
+            className={cn(
+              'h-11 w-full min-w-0 justify-start gap-2.5 px-3 text-left font-normal [&>span]:truncate',
+              !selected && 'text-slate-500',
+              error && 'border-red-500 focus-visible:ring-red-400',
+            )}
           >
-            <CalendarIcon className="mr-2 size-4" />
             {selected ? format(selected, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : placeholder}
           </Button>
         </PopoverTrigger>

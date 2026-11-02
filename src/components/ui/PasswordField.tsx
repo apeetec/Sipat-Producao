@@ -16,12 +16,12 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>((p
       rightElement={
         <button
           type="button"
-          tabIndex={-1}
           onClick={() => setShow(prev => !prev)}
-          className="p-1 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+          className="inline-flex size-10 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 cursor-pointer"
           aria-label={show ? 'Ocultar senha' : 'Exibir senha'}
+          aria-pressed={show}
         >
-          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
         </button>
       }
     />

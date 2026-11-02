@@ -5,7 +5,7 @@ type TableProps = React.HTMLAttributes<HTMLTableElement> & { containerClassName?
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, containerClassName, ...props }, ref) => (
-    <div data-slot="table-container" className={cn('relative w-full overflow-x-auto custom-scrollbar', containerClassName)}>
+    <div data-slot="table-container" className={cn('relative w-full touch-pan-x overflow-x-auto overscroll-x-contain custom-scrollbar', containerClassName)}>
       <table
         ref={ref}
         data-slot="table"

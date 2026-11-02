@@ -1,5 +1,11 @@
 # Portal SIPAT Honda 2026 — Documentação Técnica & Operacional
 
+> **Entrada canônica para manutenção humana ou por IA:** leia primeiro
+> [`AGENTS.md`](AGENTS.md) e o índice [`docs/README.md`](docs/README.md). A suíte
+> documental detalha arquitetura, regras de negócio, API, as 29 tabelas, segurança,
+> branches e o fluxo GitHub/Hostinger, além de distinguir configurações confirmadas
+> no repositório de inferências que dependem do hPanel.
+
 > API de produção, Swagger e deploy: `backend/README.md`. Modelo SQL:
 > `docs/DATABASE_MODEL.md` e `database/schema.sql`.
 

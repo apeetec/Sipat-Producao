@@ -41,7 +41,7 @@ export function DateTimePicker({ id, label, value, onChange, required, disabled,
           disabled={disabled || !date}
           aria-label={`Horário de ${label.toLowerCase()}`}
           aria-invalid={Boolean(error)}
-          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs outline-none focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs outline-none focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
       {error && <p className="text-xs text-red-600" role="alert">{error}</p>}

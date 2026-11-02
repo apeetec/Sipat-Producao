@@ -32,13 +32,13 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
       />
 
       {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 max-w-xs w-full bg-white shadow-2xl z-10 flex flex-col justify-between p-6">
-        <div>
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+      <div className="fixed inset-y-0 right-0 z-10 flex h-dvh w-[min(20rem,calc(100vw-2rem))] flex-col justify-between bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl sm:p-6">
+        <div className="min-h-0 overflow-y-auto custom-scrollbar">
+          <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
             <span className="font-bold text-base text-slate-900 font-display">Portal SIPAT</span>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              className="inline-flex size-10 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
               aria-label="Fechar menu"
             >
               <X className="w-5 h-5" />
@@ -69,7 +69,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                   key={link.href}
                   to={link.href}
                   onClick={onClose}
-                  className={`flex items-center gap-3 px-3 py-2.5 text-xs font-semibold rounded-lg transition-colors ${
+                  className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors ${
                     isActive
                       ? 'bg-emerald-50 text-[#028056]'
                       : 'text-slate-700 hover:bg-slate-100'
@@ -89,7 +89,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               onClose();
               onLogout();
             }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Encerrar Sessão</span>

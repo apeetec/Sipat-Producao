@@ -21,7 +21,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   if (totalPages <= 1) return null;
 
   return (
-    <div className={`flex flex-col items-start justify-between gap-3 py-3 text-xs text-slate-600 sm:flex-row sm:items-center ${className}`}>
+    <div className={`flex flex-col items-center justify-between gap-3 py-3 text-center text-xs text-slate-600 sm:flex-row sm:text-left ${className}`}>
       {totalItems !== undefined && pageSize !== undefined ? (
         <span>
           Mostrando {Math.min((currentPage - 1) * pageSize + 1, totalItems)} a{' '}
@@ -33,11 +33,11 @@ export const Pagination: React.FC<PaginationProps> = ({
         </span>
       )}
 
-      <div className="flex items-center gap-1">
+      <div className="flex w-full items-center justify-center gap-1 sm:w-auto">
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
-          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+          className="inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
           aria-label="Página anterior"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -50,7 +50,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+          className="inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
           aria-label="Próxima página"
         >
           <ChevronRight className="w-4 h-4" />

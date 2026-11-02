@@ -53,12 +53,12 @@ export const Drawer: React.FC<DrawerProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        className={`relative w-full ${widthStyles[width]} bg-white shadow-2xl z-10 flex flex-col h-full transform transition-transform border-l border-slate-200`}
+        className={`relative z-10 flex h-dvh w-full ${widthStyles[width]} flex-col border-l border-slate-200 bg-white shadow-2xl transform transition-transform`}
       >
-        <div className="flex items-start justify-between p-6 border-b border-slate-100 shrink-0">
-          <div>
-            {title && <h2 className="text-lg font-bold text-slate-900 font-display">{title}</h2>}
-            {description && <p className="text-xs text-slate-500 mt-1">{description}</p>}
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-100 p-4 sm:p-6">
+          <div className="min-w-0 pr-2">
+            {title && <h2 className="text-balance text-lg font-bold text-slate-900 font-display">{title}</h2>}
+            {description && <p className="mt-1 break-words text-pretty text-xs text-slate-500">{description}</p>}
           </div>
           <button
             onClick={onClose}
@@ -69,7 +69,7 @@ export const Drawer: React.FC<DrawerProps> = ({
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] custom-scrollbar sm:p-6">{children}</div>
       </div>
     </div>
   );

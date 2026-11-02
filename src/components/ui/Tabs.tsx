@@ -27,7 +27,7 @@ export const Tabs: React.FC<TabsProps> = ({
     return (
       <div
         className={cn(
-          'inline-flex h-10 items-center justify-start rounded-xl bg-slate-100 p-1 text-slate-500 overflow-x-auto max-w-full custom-scrollbar',
+          'inline-flex h-11 max-w-full touch-pan-x items-center justify-start overflow-x-auto overscroll-x-contain rounded-xl bg-slate-100 p-1 text-slate-500 custom-scrollbar',
           className
         )}
       >
@@ -65,7 +65,7 @@ export const Tabs: React.FC<TabsProps> = ({
   }
 
   return (
-    <div className={cn('flex items-center gap-1 border-b border-slate-200 overflow-x-auto custom-scrollbar', className)}>
+    <div className={cn('flex touch-pan-x items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-slate-200 custom-scrollbar', className)}>
       {tabs.map(tab => {
         const isActive = tab.id === activeTab;
         return (

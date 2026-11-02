@@ -47,7 +47,7 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto sm:items-center sm:p-6">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
@@ -60,16 +60,16 @@ export const Modal: React.FC<ModalProps> = ({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'relative w-full bg-white rounded-xl shadow-2xl border border-slate-200 z-10 overflow-hidden transform transition-all duration-200 animate-in zoom-in-95 max-h-[90vh] flex flex-col',
+          'relative z-10 flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl transform transition-all duration-200 animate-in zoom-in-95 sm:max-h-[90dvh] sm:rounded-xl',
           maxWidthStyles[maxWidth],
           className
         )}
       >
         {(title || description) && (
           <div className="flex items-start justify-between border-b border-slate-100 bg-slate-50/50 p-4 shrink-0 sm:p-6">
-            <div>
-              {title && <h2 className="text-lg font-bold text-slate-900 font-display tracking-tight">{title}</h2>}
-              {description && <p className="text-xs text-slate-500 mt-1">{description}</p>}
+            <div className="min-w-0 pr-2">
+              {title && <h2 className="text-balance text-lg font-bold text-slate-900 font-display">{title}</h2>}
+              {description && <p className="mt-1 break-words text-pretty text-xs text-slate-500">{description}</p>}
             </div>
             <button
               onClick={onClose}
@@ -81,7 +81,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar sm:p-6">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] custom-scrollbar sm:p-6">{children}</div>
       </div>
     </div>
   );

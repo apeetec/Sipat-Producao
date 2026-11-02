@@ -34,11 +34,11 @@ export const AuthenticatedHeader: React.FC = () => {
   return (
     <>
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:gap-6 sm:px-6 lg:gap-8 lg:px-8">
           {/* Zone 1: Wordmark */}
           <Link
             to="/"
-            className="flex items-center gap-2.5 text-slate-900 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+            className="flex min-w-0 items-center gap-2.5 text-slate-900 transition-opacity hover:opacity-90"
           >
             {settings?.primaryLogoUrl ? (
               <img src={settings.primaryLogoUrl} alt="Logo" className="h-8 max-w-[120px] object-contain" />
@@ -47,7 +47,7 @@ export const AuthenticatedHeader: React.FC = () => {
                 {(settings?.brandName || 'SIPAT')[0]}
               </div>
             )}
-            <span className="text-base font-bold tracking-tight font-display text-slate-900">
+            <span className="truncate text-base font-bold font-display text-slate-900">
               {settings?.brandName || 'Portal SIPAT Honda'}
             </span>
           </Link>
@@ -97,7 +97,7 @@ export const AuthenticatedHeader: React.FC = () => {
             {/* Mobile Hamburger Button */}
             <button
               onClick={() => setMobileOpen(true)}
-              className="md:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 cursor-pointer md:hidden"
               aria-label="Abrir menu de navegação"
             >
               <Menu className="w-6 h-6" />

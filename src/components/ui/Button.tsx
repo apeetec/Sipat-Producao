@@ -32,11 +32,11 @@ export const Button: React.FC<ButtonProps> = ({
     'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none active:scale-[0.98]';
 
   const sizeStyles = {
-    default: 'h-9 px-4 py-2 text-sm',
-    sm: 'h-8 rounded-md px-3 text-xs gap-1.5',
-    md: 'h-9 px-4 py-2 text-sm',
+    default: 'h-9 px-4 py-2 text-sm max-sm:h-11',
+    sm: 'h-8 rounded-md px-3 text-xs gap-1.5 max-sm:h-11',
+    md: 'h-9 px-4 py-2 text-sm max-sm:h-11',
     lg: 'h-11 rounded-lg px-6 text-base gap-2.5',
-    icon: 'h-9 w-9 p-0',
+    icon: 'size-9 p-0 max-sm:size-11',
   };
 
   const variantStyles = {
