@@ -1,0 +1,873 @@
+# PROMPT MESTRE — RECRIAR O PORTAL SIPAT HONDA
+
+> Copie a partir de “INÍCIO DO PROMPT” e cole no Google AI Studio.
+
+---
+
+## INÍCIO DO PROMPT
+
+Atue como uma equipe sênior completa, formada por Product Manager, analista de negócios, arquiteto de software, UX/UI designer, engenheiro frontend, engenheiro backend, especialista Firebase, QA, segurança e acessibilidade. Sua missão é construir um aplicativo web full-stack pronto para produção chamado **Portal SIPAT Honda**, recriando fielmente a experiência e as regras descritas abaixo, porém corrigindo as falhas técnicas do sistema original.
+
+Não entregue apenas protótipo, wireframe, texto explicativo ou uma única tela estática. Gere o projeto funcional completo, com frontend, backend, persistência, autenticação, autorização, dados iniciais, validações, tratamento de erros e documentação. Não use pseudocódigo, `TODO`, mocks permanentes ou botões sem ação. Se o ambiente não conseguir provisionar Firebase automaticamente, implemente uma camada de repositórios com um adaptador Firebase real e um adaptador local temporário, mantendo as mesmas interfaces, e explique exatamente como ativar o Firebase.
+
+Toda a interface e todas as mensagens devem estar em **português do Brasil**. O código, nomes de tipos e nomes técnicos podem estar em inglês, desde que consistentes.
+
+## 1. Objetivo do produto
+
+O Portal SIPAT Honda é uma plataforma corporativa para uma Semana Interna de Prevenção de Acidentes do Trabalho. O colaborador entra usando sua matrícula, aceita o regulamento, assiste às palestras em vídeo ou valida presença presencial, responde questionários diários e passa a concorrer a brindes quando acerta 100% das questões avaliativas. Administradores gerenciam dias, sessões, perguntas, unidades e usuários, importam colaboradores em massa, consultam respostas, executam sorteios auditáveis e publicam uma galeria de ganhadores.
+
+O produto deve atender dois perfis:
+
+- **Colaborador**: login, primeira senha, regulamento, agenda, vídeo, presença, questionários, resultado individual e galeria de ganhadores.
+- **Administrador**: todo o acesso do colaborador mais gestão editorial, usuários, importações, relatórios, sorteios, histórico, auditoria e configurações.
+
+## 2. Stack obrigatória
+
+Use:
+
+- React com TypeScript e Vite.
+- React Router para rotas.
+- Firebase Authentication para identidade e sessão.
+- Cloud Firestore para dados.
+- Firebase Storage para banners, vídeos, PDFs e imagens de prêmios.
+- Cloud Functions/servidor confiável para operações privilegiadas: importação, alteração de claims, validação de presença, submissão e correção de questionário, elegibilidade, sorteio, exclusão de usuários e exportações sensíveis.
+- Firebase Admin SDK somente no backend.
+- CSS modular, Tailwind ou solução equivalente, mas crie um design system consistente. Não misture vários frameworks visuais.
+- Biblioteca de ícones Lucide ou Font Awesome.
+- Uma biblioteca madura de tabelas apenas para a matriz administrativa, com colunas fixas, busca, filtros e exportação.
+- Uma biblioteca CSV que respeite aspas, delimitadores e quebras de linha; não use `split(';')` como parser definitivo.
+- Testes unitários com Vitest e Testing Library; testes end-to-end dos fluxos críticos com Playwright.
+- ESLint, formatter e scripts de build/test.
+
+Não armazene senha, resposta correta, código presencial ou regra de elegibilidade no cliente. Não dependa de WordPress.
+
+## 3. Diretrizes de arquitetura
+
+Organize o projeto, no mínimo, assim:
+
+```text
+src/
+  app/
+    router/
+    providers/
+    guards/
+  components/
+    ui/
+    layout/
+    feedback/
+    data-display/
+  features/
+    auth/
+    regulations/
+    home/
+    events/
+    video-progress/
+    quizzes/
+    winners/
+    admin/
+      dashboard/
+      event-management/
+      question-management/
+      unit-management/
+      user-management/
+      user-import/
+      bulk-delete/
+      results/
+      draws/
+      audit/
+      settings/
+  services/
+    firebase/
+    repositories/
+    exports/
+  hooks/
+  types/
+  utils/
+  styles/
+  seed/
+functions/
+  src/
+    auth/
+    participation/
+    imports/
+    draws/
+    reports/
+    audit/
+firestore.rules
+storage.rules
+firestore.indexes.json
+```
+
+Use separação entre apresentação, casos de uso e persistência. Components não devem chamar Firestore diretamente. Centralize regras de negócio em serviços/casos de uso e duplique no cliente apenas validações de UX, nunca decisões de segurança.
+
+## 4. Modelo de dados
+
+Implemente os tipos abaixo com timestamps reais, validação de schema e conversores Firestore.
+
+### `users/{userId}`
+
+```ts
+type AppUser = {
+  id: string;
+  employeeNumber: string;          // matrícula/login único
+  email: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+  description?: string;
+  role: 'admin' | 'collaborator';
+  unitId?: string;
+  unitSlug?: string;
+  unitNameBackup?: string;
+  company?: string;
+  adminComment?: string;
+  mustChangePassword: boolean;
+  regulationAcceptedVersion?: string;
+  regulationAcceptedAt?: Timestamp;
+  active: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+```
+
+Matrícula e e-mail devem ser únicos. Crie índices/coleções auxiliares transacionais se necessário. A role real também deve estar em custom claims, mas o perfil Firestore é a fonte de exibição.
+
+### `units/{unitId}`
+
+```ts
+type Unit = {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  sortOrder: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+```
+
+### `eventDays/{dayId}`
+
+```ts
+type EventDay = {
+  id: string;
+  name: string;
+  slug: string;
+  dateLabel: string;
+  parentId?: string;               // permite sessões filhas
+  attraction?: string;
+  theme?: string;
+  timezone: 'America/Sao_Paulo';
+  opensAt: Timestamp;
+  closesAt: Timestamp;
+  videoUrl?: string;
+  videoStoragePath?: string;
+  videoEmbedUrl?: string;
+  unitVideoOverrides?: Record<string, string>;
+  attendanceCodeHash?: string;     // nunca enviar código puro ao cliente
+  attendanceCodeLength: number;
+  bannerImageUrl?: string;
+  speakers: Array<{ name: string; imageUrl?: string }>;
+  active: boolean;
+  countsForFullWeek: boolean;
+  sortOrder: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+```
+
+O código presencial deve ser definido no admin, armazenado com hash e validado em Cloud Function. Permita rotacionar o código e audite a alteração sem registrar seu valor puro.
+
+### `questions/{questionId}`
+
+```ts
+type Question = {
+  id: string;
+  eventDayId: string;
+  title: string;
+  type: 'single_choice' | 'free_text' | 'rating';
+  required: boolean;
+  scored: boolean;
+  alternatives: Array<{
+    id: string;
+    text: string;
+    isCorrect?: boolean;            // somente backend/admin autorizado
+  }>;
+  suggestionPrompt?: string;
+  sortOrder: number;
+  active: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+```
+
+Regras editoriais:
+
+- `single_choice` precisa ter pelo menos duas alternativas.
+- Se `scored=true`, deve haver exatamente uma alternativa correta.
+- `free_text` e `rating` são, por padrão, não avaliativas.
+- Uma pergunta não avaliativa não entra no denominador da nota.
+- Não permita publicar questionário com questão avaliativa inválida.
+
+### `participations/{userId_dayId}`
+
+```ts
+type Participation = {
+  id: string;
+  userId: string;
+  eventDayId: string;
+  firstAccessAt?: Timestamp;
+  lastAccessAt?: Timestamp;
+  modality?: 'in_person' | 'remote';
+  attendanceValidatedAt?: Timestamp;
+  videoProgressPercent: number;
+  videoCompletedAt?: Timestamp;
+  status: 'not_started' | 'in_progress' | 'submitted';
+  answers: Record<string, {
+    alternativeId?: string;
+    text?: string;
+  }>;
+  suggestions: Record<string, string>;
+  submittedAt?: Timestamp;
+  correctCount?: number;
+  scoredQuestionCount?: number;
+  percentage?: number;
+  perfectScore: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+```
+
+Use ID determinístico para garantir uma única participação por usuário/dia. Depois de enviada, a participação fica imutável para o colaborador. Admin pode corrigir apenas por ação auditada e com justificativa.
+
+### `draws/{drawId}`
+
+```ts
+type Draw = {
+  id: string;
+  prizeName: string;
+  prizeImageUrl?: string;
+  prizeImageStoragePath?: string;
+  groupName: string;
+  scope: { type: 'day'; eventDayId: string } | { type: 'full_week' };
+  unitIds: string[] | ['all'];
+  requestedWinnerCount: number;
+  actualWinnerCount: number;
+  excludePreviousWinners: boolean;
+  eligibleCount: number;
+  eligibleUserIdsSnapshot: string[];
+  winners: Array<{
+    userId: string;
+    employeeNumber: string;
+    name: string;
+    email: string;
+    unitName: string;
+    company?: string;
+    position: number;
+  }>;
+  status: 'published' | 'voided';
+  voidReason?: string;
+  createdBy: string;
+  createdAt: Timestamp;
+  voidedBy?: string;
+  voidedAt?: Timestamp;
+};
+```
+
+Não apague sorteio fisicamente. Use `voided` com motivo, autor e horário. Um sorteio anulado não deve contar como premiação anterior, mas deve permanecer na auditoria.
+
+### Outras coleções
+
+- `regulations/{version}`: título, versão, PDF/HTML, publicado, vigência.
+- `accessLogs/{id}`: userId, employeeNumber, timestamp, result, IP truncado/hash quando legalmente adequado, user agent resumido.
+- `auditLogs/{id}`: ator, ação, entidade, entidadeId, before/after sanitizados, timestamp.
+- `appSettings/general`: branding, banners desktop/mobile, nome do evento, ano, políticas e links.
+
+## 5. Autenticação e autorização
+
+Implemente:
+
+1. Login por matrícula + senha. Como Firebase Auth autentica por e-mail, crie uma Cloud Function segura que resolva a matrícula para o e-mail sem revelar se a conta existe, aplique rate limiting e devolva um token customizado ou implemente uma estratégia equivalente segura.
+2. Mensagem genérica “Matrícula ou senha inválida”.
+3. Proteção contra brute force/rate limit e logs de tentativas.
+4. Sessão persistente com opção segura de logout.
+5. Guard global: visitante só acessa login; páginas de privacidade/erro podem ser públicas se explicitamente configuradas.
+6. Se `mustChangePassword=true`, só permitir `/primeiro-acesso` e logout.
+7. Depois da troca, exigir aceitação da versão vigente do regulamento.
+8. Guard de admin baseado em custom claim, nunca somente em campo do cliente.
+9. Redirecionar admin/colaborador para a rota correta após cada etapa.
+10. Fluxo de recuperação de senha administrado ou por e-mail, configurável.
+
+Primeira senha:
+
+- Formulário com senha, confirmação, mostrar/ocultar e checklist.
+- Mínimo de 8 caracteres, com política configurável.
+- Invalidar sessões antigas após troca.
+- Atualizar `mustChangePassword=false` somente após sucesso.
+
+Regulamento:
+
+- Mostrar PDF responsivo ou conteúdo HTML acessível.
+- Checkbox explícito e botão “Li e concordo com o regulamento”.
+- Registrar versão, data e usuário via operação autenticada.
+- Nunca aceitar via query string GET.
+
+## 6. Layout global e identidade visual
+
+Crie um design corporativo, acolhedor e responsivo inspirado no original.
+
+Tokens principais:
+
+- Verde institucional principal: `#028056`.
+- Verde escuro: `#015237` e `#014730`.
+- Verde de ação: `#66bd39`.
+- Fundo claro cinza-esverdeado: `#e2e8e8`.
+- Grafite: `#323f3c`.
+- Dourado para prêmios: `#f59e0b`.
+- Roxo/azul de relatórios: `#667eea` e `#764ba2`.
+- Sucesso: `#28a745`; erro: `#d32f2f`; alerta: `#f57c00`.
+- Fonte principal: Inter; títulos especiais podem usar Montserrat.
+
+Estrutura autenticada:
+
+- Banner de campanha em largura total, com versões desktop e mobile configuráveis.
+- Nav branco com logo opcional, links vindos de configuração e botão “Sair”.
+- Desktop: links à direita e dropdowns acessíveis.
+- Mobile: botão hambúrguer, drawer com todos os links e logout.
+- `main` deve ocupar altura restante; conteúdo com padding horizontal de 2 rem em desktop e 1 rem em mobile.
+- Estados de foco visíveis, contraste AA, navegação por teclado, `aria-live` para feedback e suporte a `prefers-reduced-motion`.
+
+Não dependa de imagens remotas hardcoded. Use assets locais/Storage com fallback visual. Crie placeholders de banner e logo que possam ser substituídos no admin.
+
+## 7. Rotas e telas do colaborador
+
+### `/login`
+
+- Fundo gradiente verde.
+- Logo central acima do card.
+- Card branco com no máximo 450 px, bordas de 20 px e sombra.
+- Inputs “Matrícula” e “Senha” com ícones.
+- Botão verde “Entrar” em largura total.
+- Texto: “Senha inicial: data de aniversário sem barras. Exemplo: 01051995”, controlável por configuração.
+- Erros em bloco vermelho, sem expor qual campo existe.
+- Loading e prevenção de duplo envio.
+
+### `/primeiro-acesso`
+
+- Reutilizar o visual do login.
+- Explicar a troca obrigatória.
+- Nova senha, confirmação, checklist, feedback e link de logout.
+
+### `/regulamento`
+
+- Título central, visualizador de PDF/HTML, fallback para baixar arquivo.
+- Checkbox e botão de concordância.
+- Salvar versão e data.
+
+### `/` — home
+
+- Banner e navegação global.
+- Grade de dias do evento.
+- Desktop com cinco colunas; tablet com duas; mobile com uma.
+- Cada card inteiro é clicável e contém dia, data, palestrantes e imagens.
+- Estados: futuro/bloqueado, aberto, concluído e encerrado.
+- Não hardcode URLs absolutas; use slugs/IDs e router.
+- Seed visual inicial de cinco dias: 10/11 a 14/11, com suporte a edição administrativa.
+
+### `/dias/:slug`
+
+Esta é a tela central do produto. Implemente na ordem:
+
+1. Card de data com ícone de calendário, data e nome.
+2. Se ainda não abriu: mensagem “Data de liberação do vídeo: dd/mm às HHhMM”, contador opcional e conteúdo bloqueado.
+3. Se encerrou: estado encerrado; participação já enviada continua consultável em modo leitura.
+4. Se aberto e não enviado: aviso de que ainda não está concorrendo porque não finalizou a pesquisa.
+5. Se enviado: mensagem de agradecimento e elegibilidade do dia.
+6. Faixa de atração/tema em grafite.
+7. Escolha de modalidade:
+   - “Estou presencial — digitar código”.
+   - “Assistir à palestra”.
+8. No presencial, mostrar campo de código, dica, loading e feedback. Validar exclusivamente no backend. Código correto define modalidade presencial e libera questionário imediatamente; vídeo passa a ser opcional.
+9. No remoto, vídeo é obrigatório. Usar player acessível com play/pause, barra real, duração e retomada de progresso.
+10. Registrar progresso com throttling e validação server-side razoável. Liberar questionário a partir de 99% assistido. Não aceitar que o cliente marque 99% instantaneamente.
+11. Selecionar vídeo por override da unidade quando existir; senão usar o vídeo padrão do dia.
+12. Renderizar sessões filhas na ordem, cada uma com seu vídeo/questionário e participação própria ou vínculo claramente modelado.
+13. Questionário em cards:
+    - cabeçalho grafite com a pergunta;
+    - alternativas em linhas claras, radio acessível e hover;
+    - texto livre/avaliação quando configurado;
+    - campos obrigatórios sinalizados;
+    - erro inline e resumo no topo;
+    - preservar respostas locais antes do envio.
+14. Botão “Enviar respostas” verde, confirmação opcional, loading e bloqueio de duplo clique.
+15. Backend valida janela, autenticação, liberação presencial/vídeo, todas as obrigatórias e IDs de alternativas.
+16. Backend corrige sem enviar gabarito ao cliente, grava tudo atomicamente e devolve apenas resultado autorizado.
+17. Após envio, mostrar mensagem de sucesso, `X de Y`, percentual e celebração se 100%.
+18. Modo leitura mostra a resposta dada; mostrar resposta correta somente após envio e se a política permitir.
+19. Não permitir segunda submissão pelo colaborador.
+
+### `/ganhadores` e `/sorteios`
+
+Ambas podem apontar para a mesma tela canônica.
+
+- Hero verde com badge “SIPAT HONDA • PREMIAÇÕES”.
+- Título “Galeria de Ganhadores & Sorteios”.
+- Subtítulo explicando que participantes com 100% concorrem.
+- Métricas: sorteios realizados, ganhadores premiados e dias de palestra.
+- Barra branca de filtros: todos, semana completa e cada dia.
+- Grid responsivo: cards de no mínimo 360 px, uma coluna no mobile.
+- Card: badge da data, total de ganhadores, faixa “GRUPO CONTEMPLADO”, imagem do prêmio, ribbon “PREMIADO”, nome do prêmio, lista de vencedores, matrícula parcialmente mascarável conforme política, unidade e data.
+- Medalhas para posições 1, 2, 3 e genérica para demais.
+- Empty states globais e por filtro.
+- Confete suave ao entrar e botão “Celebrar”; respeitar reduced motion.
+- Não mostrar sorteios `voided`.
+
+## 8. Área administrativa
+
+Crie um shell administrativo próprio com sidebar/drawer e rotas protegidas.
+
+### `/admin`
+
+Dashboard com:
+
+- total de colaboradores ativos;
+- usuários com participação;
+- dias ativos;
+- total de perguntas;
+- quantidade com 100% por dia;
+- sorteios realizados;
+- alertas de conteúdo inválido, datas sem vídeo e questões avaliativas sem gabarito;
+- atalhos para importar usuários, gerenciar perguntas, resultados e novo sorteio.
+
+### `/admin/dias`
+
+- Lista ordenável de dias e sessões filhas.
+- CRUD completo dos campos de `EventDay`.
+- Date/time picker consciente de `America/Sao_Paulo`, sem ajustes manuais de +3 horas.
+- Upload/seleção de vídeo e banner.
+- Overrides de vídeo por unidade.
+- Campo de código presencial com gerar/rotacionar, nunca revelar código salvo; permitir definir novo código.
+- Preview do card da home e da página do dia.
+- Validação `opensAt < closesAt`.
+- Não excluir dia com participações; permitir arquivar.
+
+### `/admin/perguntas`
+
+- Filtro por dia/sessão, tipo, ativa e avaliativa.
+- CRUD de perguntas.
+- Editor repetível e ordenável de alternativas.
+- Exatamente uma correta em questão avaliada.
+- Perguntas de pesquisa podem ser single choice sem correta, texto livre ou rating.
+- Preview do card.
+- Reordenar perguntas.
+- Detectar duplicatas por título e alternativas e oferecer revisão, não apagar automaticamente.
+
+### `/admin/unidades`
+
+- CRUD de nome, slug, status e ordem.
+- Impedir slugs duplicados e normalizar acentos.
+- Mostrar quantidade de usuários.
+- Mesclar duplicatas somente por operação explícita e auditada.
+
+### `/admin/usuarios`
+
+- Tabela paginada server-side com matrícula, nome, e-mail, unidade, empresa, status, senha inicial pendente e aceite do regulamento.
+- Busca e filtros.
+- Criar/editar/desativar usuário.
+- Reset de senha e força de troca.
+- Nunca exibir senha atual.
+- Não permitir desativar/excluir o último admin nem o próprio admin durante a sessão.
+
+### `/admin/usuarios/importar`
+
+Recrie o importador moderno:
+
+- Título “Importar usuários” e explicação.
+- Toolbar: baixar CSV exemplo, carregar CSV, adicionar linha, limpar grade, exibir senhas temporariamente.
+- Grade editável com oito linhas iniciais e colunas fixas nesta ordem:
+  `employeeNumber`, `email`, `temporaryPassword`, `firstName`, `lastName`, `displayName`, `unit`, `unitNameBackup`, `company`, `adminComment`, `mustChangePassword`, `description`.
+- Login/matrícula, e-mail e senha temporária obrigatórios.
+- Colagem a partir do Excel/Sheets como TSV começando na célula selecionada.
+- CSV UTF-8 com BOM opcional, delimitador `;`, aspas e até 10 MB.
+- Validar cabeçalhos ausentes, desconhecidos e duplicados.
+- Validar matrícula, e-mail, senha, duplicatas na grade e valores booleanos.
+- Marcar célula/linha inválida e exibir resumo de válidas/inválidas.
+- Linhas inválidas não impedem as válidas.
+- Confirmação explícita de que contas existentes terão dados e senha temporária atualizados.
+- Processar em lotes de 50 via backend idempotente, com retry controlado.
+- Resolução: conflito se matrícula e e-mail apontarem para usuários distintos; se for a mesma conta, atualizar mantendo a matrícula canônica.
+- Criar unidade inexistente apenas se opção “criar unidades automaticamente” estiver ativa.
+- Resultado: cards Criados, Atualizados, Erros; tabela por linha; download CSV.
+- Nunca manter senhas no relatório, log, localStorage ou analytics.
+
+### `/admin/usuarios/excluir-em-massa`
+
+Inclua a funcionalidade legada, porém segura:
+
+- Área separada com alerta vermelho de irreversibilidade, embora a implementação recomendada seja desativação/soft delete.
+- CSV com `employeeNumber` e/ou `email`; comentários iniciados por `;;` podem ser ignorados.
+- Pré-visualização obrigatória de contas encontradas/não encontradas/protegidas.
+- Bloquear administradores, superadmins, usuário atual e contas do sistema.
+- Exigir digitar uma frase de confirmação e reautenticação.
+- Preferir desativar; exclusão física apenas sob feature flag, com backup e job auditado.
+- Relatório final e trilha de auditoria.
+
+### `/admin/resultados`
+
+- Acesso apenas admin.
+- Descobrir dias e perguntas dinamicamente.
+- Hero roxo com quatro métricas: total de usuários, com respostas, datas e total de perguntas.
+- Badges com cada data e contagem de perguntas.
+- Filtros: todos, com respostas, sem respostas; adicionar unidade, dia, percentual, modalidade e período.
+- Tabela com duas linhas de cabeçalho: Matrícula/Nome/Unidade e grupos por data; P1, P2 etc. com tooltip do texto completo.
+- Colunas Matrícula e Nome fixas; rolagem horizontal.
+- Célula sem resposta “–”; respondida em verde.
+- Permitir visualizar detalhes de um usuário em drawer, incluindo sugestões, presença, vídeo, score e timestamps.
+- Exportar Copy, Excel, CSV UTF-8 BOM, PDF paisagem e impressão.
+- Exportações devem refletir filtros e usar valores completos.
+- Paginação server-side para milhares de usuários; não carregar toda a base de uma vez.
+- Tratar corretamente sessões filhas usando o ID/slug da própria sessão.
+
+### `/admin/sorteios`
+
+Recrie a tela premium em duas abas.
+
+Cabeçalho:
+
+- Gradiente verde, ícone de presente, título “Sorteador Oficial — SIPAT Honda”.
+- Badges: datas ativas, unidades e sorteios realizados.
+
+Aba “Realizar novo sorteio”:
+
+- Grade desktop em duas colunas, uma coluna no mobile.
+- Painel 1 “Configurar sorteio”:
+  - nome do prêmio obrigatório;
+  - nome do grupo obrigatório, default “Grupo Geral”;
+  - datalist e chips de grupos usados: Grupo Produção, Grupo Administrativo, Grupo Geral, Grupo Concessionárias, Grupo Sumaré, Grupo Itirapina;
+  - upload de foto com preview/remover;
+  - escopo: um dia ou “Semana completa — gabaritou todas as datas”;
+  - unidades: todas ou seleção múltipla; atalhos marcar/desmarcar;
+  - quantidade com stepper e chips 1, 2, 3, 5, 10; mínimo 1, máximo configurável;
+  - toggle marcado por padrão “Excluir colaboradores que já ganharam”.
+  - botões “Atualizar lista de elegíveis” e “SORTEAR AGORA!”.
+- Painel 2 “Participantes aptos”:
+  - badge de total;
+  - busca por matrícula, nome ou unidade;
+  - loading, empty state e tabela Matrícula/Nome/Unidade/Desempenho;
+  - badge “100% Acertos”.
+
+Regras de elegibilidade:
+
+- Somente colaboradores ativos.
+- Dia específico: participação submetida e `perfectScore=true` naquele dia.
+- Semana completa: 100% em todos os dias ativos com `countsForFullWeek=true` e ao menos uma pergunta avaliada.
+- Unidade por ID exato; nunca por comparação de substring.
+- Se excluir anteriores, remover vencedores de sorteios `published`.
+- Recalcular no backend no instante do sorteio; não confiar no cache mostrado.
+
+Execução:
+
+- Validar tudo no backend e executar em transação/lock para evitar duas rodadas concorrentes.
+- Usar gerador criptograficamente seguro no servidor.
+- Vencedores únicos na rodada.
+- Se quantidade exceder elegíveis, pedir confirmação no cliente e limitar no servidor.
+- Persistir snapshot do pool e dos vencedores para auditoria.
+- A animação do cliente não decide o resultado.
+- Modal “SORTEIO AO VIVO”, nomes girando por aproximadamente 4 segundos, barra de progresso e subtítulo com matrícula/unidade.
+- Revelar cards dos vencedores, medalhas, prêmio, data e grupo; chuva de confetes.
+
+Aba “Histórico”:
+
+- Cards com imagem, data, grupo, prêmio, horário, total e lista de contemplados.
+- Ação “Anular sorteio”, não excluir; modal exige motivo.
+- Filtros por data, grupo e status.
+
+### `/admin/auditoria`
+
+- Listar logins, alterações de conteúdo, imports, submissões corrigidas, sorteios e anulações.
+- Filtros por ator, ação, entidade e período.
+- Não registrar senhas, códigos de presença em claro nem respostas corretas em payload público.
+
+### `/admin/configuracoes`
+
+- Nome/ano do evento.
+- Logos e banners desktop/mobile.
+- Menu de navegação configurável, sem IDs hardcoded.
+- Política de senha, limite de vídeo, regra de exibição do gabarito, mascaramento de matrícula e expiração de sessão.
+- Regulamento vigente.
+- Links de privacidade/LGPD.
+
+## 9. Validador CSV standalone/integrado
+
+Crie `/ferramentas/validar-csv` acessível somente a admin ou como ferramenta local sem upload ao servidor.
+
+- Área drag and drop e seletor de arquivo.
+- Download do template verdadeiro.
+- Máximo 10 MB, `.csv`, UTF-8.
+- Estatísticas: linhas, válidas, com erro e avisos.
+- Erros: obrigatórios ausentes, e-mail/matrícula inválidos, duplicatas e número incoerente de colunas.
+- Avisos: colunas desconhecidas e política de senha fraca.
+- Nunca renderizar conteúdo do CSV com `innerHTML` não sanitizado.
+- Reutilizar exatamente o mesmo schema do importador para evitar divergência.
+
+## 10. Regras de segurança obrigatórias
+
+- Firestore Rules default deny.
+- Colaborador lê apenas seu perfil permitido e suas participações; não lê gabaritos, outros usuários, pool ou e-mails de ganhadores.
+- Admin claim obrigatório para escrita administrativa.
+- Storage Rules por pasta e tipo/tamanho de arquivo.
+- Toda função mutável verifica Auth, claim, schema e idempotency key quando aplicável.
+- CSRF/proteção equivalente para endpoints HTTP baseados em cookie; prefira callable functions com token verificado.
+- Rate limiting em login, código presencial e sorteio.
+- Sanitização e encoding de saída.
+- Content Security Policy e nenhum `phpinfo`/diagnóstico público.
+- Segredos somente em Secret Manager/configuração segura.
+- Logs sem PII desnecessária.
+- Soft delete/arquivamento para dados de negócio.
+- Backups e retenção documentados.
+- Não colocar URLs de domínio/ano antigo no código.
+
+## 10.1. Contratos obrigatórios das funções de backend
+
+Implemente contratos tipados e documentados. Nomes podem ser ajustados, mas as responsabilidades não podem ser misturadas ou omitidas.
+
+### Autenticação e perfil
+
+- `resolveEmployeeLogin({ employeeNumber })`: aplica rate limit, normaliza matrícula e inicia o mecanismo seguro de login sem revelar existência da conta. Nunca devolve e-mail em resposta pública simples.
+- `completeFirstAccess({ newPassword, currentCredential })`: exige reautenticação, altera senha, revoga sessões anteriores e remove `mustChangePassword` atomicamente.
+- `acceptRegulation({ version })`: confirma que a versão está publicada/vigente e grava versão/data do usuário autenticado.
+- `adminCreateUser(input)`, `adminUpdateUser(input)`, `adminDeactivateUser({ userId })`, `adminResetPassword({ userId })`: somente admin, valida unicidade, sincroniza Auth/Firestore e grava auditoria.
+
+### Eventos, vídeo e presença
+
+- `recordEventAccess({ eventDayId })`: idempotente; cria/atualiza `firstAccessAt` e `lastAccessAt` do próprio usuário.
+- `validateAttendanceCode({ eventDayId, code })`: rate limit por usuário/dia/IP, compara hash em tempo constante, registra tentativa sem guardar código, define modalidade presencial e horário em caso de sucesso. Resposta: `{ valid: boolean, questionnaireUnlocked: boolean, message }`.
+- `reportVideoProgress({ eventDayId, currentSeconds, durationSeconds, clientEventId })`: autentica, valida sequência plausível, impede regressão indevida/avanço impossível, mantém maior progresso válido e marca conclusão em 99%. Deve ser idempotente por `clientEventId`.
+- `getParticipantEvent({ eventDayId })`: devolve dia, vídeo aplicável à unidade, estado da participação e perguntas públicas; remove `isCorrect`, hash do código e campos administrativos.
+
+### Questionário
+
+- `submitQuiz({ eventDayId, answers, suggestions, idempotencyKey })`: valida janela, usuário ativo, não submetido, liberação por presença/vídeo, perguntas ativas, obrigatórias, alternativas pertencentes à pergunta e tamanho de texto. Lê gabarito no backend, calcula score, grava participação em transação e devolve `{ correctCount, scoredQuestionCount, percentage, perfectScore, submittedAt }`.
+- `adminCorrectParticipation({ participationId, answers, reason })`: somente admin, exige justificativa, recalcula e grava before/after em auditoria.
+
+### Importação e exclusão
+
+- `validateUserImport({ rows })`: valida no backend no máximo 50 linhas, devolve status por linha e não grava.
+- `processUserImportBatch({ batchId, rows })`: somente admin, idempotente por `batchId + row`, cria/atualiza Auth e perfil, resolve conflitos, nunca devolve senha.
+- `previewBulkUserAction({ identifiers })`: devolve contagens e contas protegidas sem executar.
+- `executeBulkUserAction({ previewToken, confirmationPhrase, mode })`: exige reautenticação; `mode` padrão `deactivate`; processa job auditado.
+- `exportImportReport({ importId })`: entrega arquivo autorizado com expiração curta e sem senha.
+
+### Relatórios
+
+- `getResultsMatrix({ filters, cursor, pageSize })`: somente admin, paginação server-side, retorna usuários e respostas normalizadas.
+- `getResultDetails({ userId })`: somente admin, retorna timeline/participações sem campos secretos.
+- `createResultsExport({ filters, format })`: cria job de exportação para CSV/XLSX/PDF, retorna status e URL assinada quando pronto.
+
+### Sorteios
+
+- `previewEligibleUsers({ scope, unitIds, excludePreviousWinners })`: somente admin; devolve contagem e linhas de visualização, mas nunca garante que esse será o pool final.
+- `executeDraw({ prize, groupName, scope, unitIds, winnerCount, excludePreviousWinners, idempotencyKey })`: somente admin; recalcula elegibilidade, obtém lock, sorteia no servidor, persiste snapshot e auditoria, e devolve sorteio já salvo.
+- `voidDraw({ drawId, reason })`: somente admin, exige motivo, muda status sem apagar e recalcula impacto nos próximos pools.
+- `getPublishedDraws({ dayId? })`: leitura autorizada para a galeria; remove e-mail e qualquer dado que a política de privacidade não permita publicar.
+
+Padronize erros com códigos como `UNAUTHENTICATED`, `FORBIDDEN`, `VALIDATION_ERROR`, `RATE_LIMITED`, `WINDOW_CLOSED`, `QUESTIONNAIRE_LOCKED`, `ALREADY_SUBMITTED`, `CONFLICT`, `NO_ELIGIBLE_USERS` e `INTERNAL_ERROR`. O frontend deve mapear códigos para mensagens amigáveis e registrar somente detalhes técnicos seguros.
+
+## 10.2. Inventário obrigatório de componentes frontend
+
+Crie componentes reutilizáveis, testáveis e acessíveis:
+
+- `AppShell`, `AuthenticatedHeader`, `DesktopNav`, `MobileDrawer`, `CampaignBanner`, `AdminShell`, `AdminSidebar`.
+- `ProtectedRoute`, `AdminRoute`, `FirstAccessRoute`, `RegulationRoute`.
+- `Button`, `IconButton`, `TextField`, `PasswordField`, `Select`, `Checkbox`, `RadioGroup`, `DateTimeField`, `FileUploader`, `Modal`, `Drawer`, `Tabs`, `Badge`, `Card`, `Tooltip`, `Toast`, `Alert`, `Skeleton`, `EmptyState`, `ErrorState`, `Pagination`.
+- `EventDayCard`, `EventStatusBadge`, `ReleaseNotice`, `ParticipationStatus`, `AttendanceChoice`, `AttendanceCodeForm`, `VideoPlayer`, `VideoProgressBar`.
+- `QuizForm`, `QuestionCard`, `SingleChoiceQuestion`, `FreeTextQuestion`, `RatingQuestion`, `QuizResult`, `ReadOnlyAnswerReview`.
+- `WinnerGalleryHero`, `DrawFilters`, `PrizeCard`, `WinnerItem`, `ConfettiCelebration`.
+- `EditableGrid`, `CsvDropzone`, `ValidationSummary`, `ImportProgress`, `ImportReport`.
+- `ResultsStats`, `ResultsFilters`, `ResultsMatrix`, `UserResultDrawer`, `ExportMenu`.
+- `DrawConfigForm`, `UnitMultiSelect`, `EligiblePoolTable`, `LiveDrawModal`, `WinnerReveal`, `DrawHistoryCard`, `VoidDrawModal`.
+
+Para cada tela, use composição desses componentes; evite arquivos monolíticos com centenas de linhas de markup e lógica.
+
+## 11. Regras de UX, estados e erros
+
+Todas as telas precisam de:
+
+- loading skeleton;
+- empty state;
+- erro recuperável com “Tentar novamente”;
+- confirmação em ações destrutivas;
+- toast e mensagem inline quando necessário;
+- prevenção de duplo clique;
+- formulários com erro junto ao campo e foco no primeiro erro;
+- responsividade de 320 px a desktop amplo;
+- teclado e leitores de tela;
+- datas em `pt-BR`, persistidas em UTC e exibidas em America/Sao_Paulo;
+- comportamento correto offline/intermitente, sem afirmar sucesso antes do servidor.
+
+## 12. Dados iniciais
+
+Crie seed idempotente com cinco dias principais e permita substituir datas/arquivos pelo admin. Use conteúdo de exemplo sem depender de domínios externos.
+
+Dias:
+
+1. Segunda-feira — palestrante Emanuel Curi.
+2. Terça-feira — palestrantes Fernanda Leite e Arthur Nigro.
+3. Quarta-feira — palestrante Alexandre Eberle.
+4. Quinta-feira — palestrantes Jéssica Claro e Patrícia Batista.
+5. Sexta-feira — SIPAT Music.
+
+Unidades iniciais, mantendo nomes/slugs únicos e marcando duplicidades suspeitas para revisão:
+
+`CT`, `Filial RJ`, `HAB`, `HAB COM`, `HDA Peças`, `HDA SUM`, `HRBS`, `HSA`, `HTB`, `IPMS`, `ITI`, `LSL`, `Matriz RJ`, `Matriz SP`, `PROD-ITI`, `PROD-SUM`, `SAO-CNH S. C. SUL`, `SAO-HAB-SUM-CO`, `SAO-HDA SUMARE ADM`, `SAO-HDA-CT SUMARE`, `SAO-HDA-INDAIATUBA`, `SAO-HDA-JABOATAO`, `SAO-HDA-RECIFE`, `SAO-HDA-SUM-PEÇAS`, `SAO-PREVIHONDA`, `SUM`, `SUM-HAB`, `SUM-HAB-ITAJAI`, `SUM-HAB-ITIRAPINA`, `SUM-HAB-PAULINIA`, `SUM-HTB-ITAJAI`, `SUM-HTB-SUMARE`, `TERCEIROS`.
+
+Inclua perguntas de exemplo reais, separadas por dia, preservando a distinção entre avaliativas e pesquisa. No mínimo, use estas:
+
+**Segunda-feira — avaliativas**
+
+- “Qual foi o principal tema abordado por Emanuel Curi em sua palestra?” Correta: “Como manter a energia, o propósito e o equilíbrio entre corpo, mente e espírito”. Distratores: produtividade na empresa; novas tecnologias no trabalho.
+- “Segundo Emanuel, o que devemos fazer quando cometemos erros?” Correta: “Aprender com o erro e voltar a fazer melhor”.
+- “Na história do Emanuel, o que representa o ato de ‘ser chato com os colegas’?” Correta: “Cuidar da segurança e cobrar o uso dos equipamentos com empatia”.
+- Adicione “Qual é a principal mensagem final da palestra?” como rascunho inválido para demonstrar o alerta administrativo, pois a origem não tinha alternativa correta. Não publique até um admin escolher a correta.
+
+**Terça-feira — avaliativas**
+
+- Tema da palestra de Fernanda Leite: correta “O impacto da vida pessoal na vida profissional e o equilíbrio emocional”.
+- Fatores fundamentais para o bem-estar: correta “Domínio do ambiente, inteligência emocional, autoaceitação, autonomia, crescimento pessoal, rede de apoio e propósito”.
+- Importância da rede de apoio: correta “Relações saudáveis ajudam a lidar com crises e fortalecem a saúde mental”.
+- Verdadeiro sentido do propósito: correta “Transformar positivamente a própria vida e a vida das pessoas ao redor”.
+- Não replique as quatro duplicatas existentes no banco original; o seed deve conter uma única versão de cada pergunta.
+
+**Quarta-feira — avaliativas**
+
+- Tema de Alexandre: correta “Percepção de risco e como identificar perigos no ambiente de trabalho”.
+- Diferença entre perigo e risco: correta “Perigo é a fonte de dano e risco é a forma como interagimos com ela”.
+- “Rádio da Segurança”: correta “Nossa atenção aos sinais e alertas de perigo do dia a dia”.
+- Teoria da Dupont: correta “O comportamento e as decisões das próprias pessoas”.
+
+**Quinta-feira — avaliativas**
+
+- O que aconteceu com Jéssica Claro em 2014: correta “Sofreu um grave acidente de moto a caminho do trabalho”.
+- Primeiros socorros: correta “Um brigadista chamado Tiago, que usou o kit de primeiros socorros da empresa”.
+- Principal mensagem: correta “Levar a segurança como um valor na empresa e na vida pessoal”.
+- Aprendizado após o acidente: correta “A gratidão e o amor das pessoas próximas são forças essenciais para recomeçar”.
+
+**Sexta-feira — avaliativas**
+
+- O que são EPIs e para que servem: correta “Equipamentos de Proteção Individual que protegem os trabalhadores durante suas funções”.
+- Uso obrigatório de protetor auricular: correta quando exposição ao ruído excede limites da NR-15/ambientes sinalizados.
+- Acidente de trabalho: correta comunicar supervisão, Saúde e Segurança pelos ramais de emergência.
+- Manutenção elétrica: correta equipe treinada e qualificada.
+- Padrões de serviço e segurança: correta indicação de EPIs e cuidados específicos.
+- Equipamentos de emergência: correta manter extintores/hidrantes sinalizados e desobstruídos.
+- Alarme de incêndio: correta manter calma e seguir Brigada/Grupo de Abandono até o ponto de encontro.
+- Incêndio: correta acionar botoeira de emergência e manter calma.
+- Após evacuação: correta permanecer no ponto de encontro e aguardar autorização.
+- Chokotei: correta “Pequenas paradas durante o ciclo de trabalho”.
+- Proteção dos olhos: correta “Óculos de segurança”.
+- Função de EPC: correta proteger coletivamente e eliminar/mitigar a fonte do risco.
+- EPI danificado: correta substituir imediatamente.
+- Treinamentos de EPI: correta garantir conhecimento e uso correto.
+- Proteção das mãos contra cortes: correta luvas resistentes a corte.
+
+**Sexta-feira — pesquisa não avaliativa**
+
+- Paródia favorita do SIPAT Music, single choice sem resposta correta.
+- Avaliação geral da SIPAT: Ótimo, Bom, Regular, Ruim + comentário opcional.
+- “O que você achou das palestras?”, campo de texto livre.
+
+## 13. Migração conceitual do legado
+
+Crie em `docs/migration.md` um mapa:
+
+- WordPress user/login → Firebase Auth + `users`.
+- taxonomia `unidades` → `units`.
+- taxonomia `datas_perguntas` → `eventDays`.
+- post type `perguntas` + `grupo_de_respostas` → `questions`.
+- user meta dinâmico de respostas/pontuação → `participations`.
+- post type `sorteios_sipat` → `draws`.
+- flags “Sim/Não/on” → booleanos/timestamps tipados.
+
+Inclua estratégia de script de importação, mas não inclua dados pessoais no repositório.
+
+## 14. Testes mínimos obrigatórios
+
+Unitários:
+
+- cálculo de score ignora não avaliativas;
+- 100% somente quando todas as avaliativas estão corretas;
+- conclusão exige todas as obrigatórias;
+- elegibilidade diária e semana completa;
+- filtro exato por unidade;
+- exclusão de vencedores anteriores;
+- clamp de quantidade;
+- parser CSV com aspas, `;`, BOM, quebra de linha e UTF-8;
+- conflito matrícula/e-mail;
+- conversão de fuso horário.
+
+Integração/backend:
+
+- colaborador não lê gabarito;
+- colaborador não altera participação submetida;
+- código presencial inválido não libera;
+- submissão antes de vídeo/código é rejeitada;
+- dois sorteios concorrentes não premiam indevidamente a mesma pessoa quando exclusão está ativa;
+- anulação mantém auditoria;
+- import idempotente.
+
+E2E:
+
+1. Login → primeira senha → regulamento → home.
+2. Remoto: abrir dia → assistir até limite → responder → ver nota.
+3. Presencial: validar código → responder sem vídeo obrigatório.
+4. Admin cria dia/perguntas e publica.
+5. Admin importa CSV com linhas válidas e inválidas.
+6. Admin filtra resultados e exporta CSV.
+7. Admin carrega elegíveis, sorteia, vê roleta e galeria.
+8. Layout mobile com menu e logout.
+
+## 15. Critérios de aceite
+
+O projeto só está concluído quando:
+
+- Todas as rotas descritas existem e funcionam.
+- Autenticação, guards e claims funcionam.
+- CRUD administrativo persiste no Firebase.
+- Vídeo/código controlam liberação no backend.
+- Questionário calcula score corretamente e é imutável após envio.
+- Sorteio é server-side, seguro, auditável e persistido.
+- Importador processa lotes e gera relatório.
+- Resultados são dinâmicos e exportáveis.
+- Galeria filtra por dia e mostra apenas sorteios publicados.
+- Desktop, tablet e mobile estão utilizáveis.
+- Regras Firestore/Storage negam acessos indevidos.
+- Build, lint e testes passam.
+- README explica setup, emuladores, seed, deploy e criação do primeiro admin.
+
+## 16. Forma de execução e entrega
+
+Antes de escrever código, apresente rapidamente:
+
+1. arquitetura final;
+2. árvore de arquivos;
+3. modelo de dados;
+4. plano em etapas.
+
+Em seguida, implemente o projeto. Não pare após o plano. Trabalhe em incrementos completos e executáveis, começando por fundação/Firebase, depois autenticação, domínio de eventos/questionários, área do colaborador, administração, importador, resultados, sorteios, galeria, segurança e testes.
+
+Ao final, entregue:
+
+- todos os arquivos do projeto;
+- `.env.example` sem segredos;
+- regras e índices Firebase;
+- Cloud Functions;
+- script de seed idempotente;
+- testes;
+- README de instalação e deploy;
+- credenciais fictícias de desenvolvimento apenas para emuladores;
+- checklist de produção;
+- lista curta de diferenças intencionais em relação ao legado, destacando correções de segurança.
+
+Não simplifique as regras, não remova telas e não substitua persistência por arrays em memória. Se alguma decisão estiver ambígua, escolha a alternativa mais segura e configurável, registre a decisão no README e continue a implementação.
+
+## FIM DO PROMPT
