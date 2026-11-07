@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { eventRepository, questionRepository, settingsRepository } from '../../services/repositories';
+import { settingsRepository } from '../../services/repositories';
 import { backendService } from '../../services/api/backend-service';
 import { EventDay, Question, Participation, AppSettings } from '../../types';
 import { AppShell } from '../../components/layout/AppShell';
@@ -43,6 +43,7 @@ export const EventDayPage: React.FC = () => {
   const [submitError, setSubmitError] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showReviewMode, setShowReviewMode] = useState(false);
+  const quizIdempotencyKeyRef = useRef<string | null>(null);
 
   // Form answers state
   const [answers, setAnswers] = useState<Record<string, { alternativeId?: string; text?: string; rating?: number }>>({});
@@ -53,18 +54,17 @@ export const EventDayPage: React.FC = () => {
       if (!slug || !user) return;
       try {
         setLoading(true);
-        const eventDay = await eventRepository.getBySlug(slug);
-        if (!eventDay) {
+        const [data, appSettings] = await Promise.all([
+          backendService.getParticipantEventBySlug(user.id, slug),
+          settingsRepository.getSettings(),
+        ]);
+        if (!data) {
           navigate('/', { replace: true });
           return;
         }
+        const eventDay = data.eventDay;
         setDay(eventDay);
-
-        const appSettings = await settingsRepository.getSettings();
         setSettings(appSettings);
-
-        // Fetch participant event data through backend service
-        const data = await backendService.getParticipantEvent(user.id, eventDay.id);
         setParticipation(data.participation);
         setIsUnlocked(data.isUnlocked);
 
@@ -141,9 +141,9 @@ export const EventDayPage: React.FC = () => {
     return res;
   };
 
-  const handleVideoProgressUpdate = async (current: number, duration: number) => {
+  const handleVideoProgressUpdate = async (current: number, duration: number, clientEventId: string) => {
     if (!user || !day) return { videoProgressPercent: 0, questionnaireUnlocked: false };
-    const res = await backendService.reportVideoProgress(user.id, day.id, current, duration);
+    const res = await backendService.reportVideoProgress(user.id, day.id, current, duration, clientEventId);
     if (res.questionnaireUnlocked && !isUnlocked) {
       setIsUnlocked(true);
       toast.success('Vídeo concluído! O questionário está liberado abaixo.');
@@ -181,16 +181,19 @@ export const EventDayPage: React.FC = () => {
     setSubmitError('');
 
     try {
+      quizIdempotencyKeyRef.current ??= crypto.randomUUID();
       const res = await backendService.submitQuiz({
         userId: user.id,
         eventDayId: day.id,
         answers,
         suggestions,
+        idempotencyKey: quizIdempotencyKeyRef.current,
       });
 
       if (res.success && res.data) {
         // Clear draft
         localStorage.removeItem(`draft_quiz_${user.id}_${day.id}`);
+        quizIdempotencyKeyRef.current = null;
 
         // Update local participation state
         const updatedPart = await backendService.getParticipantEvent(user.id, day.id);
@@ -204,7 +207,22 @@ export const EventDayPage: React.FC = () => {
         setSubmitError(res.message || 'Erro ao processar questionário.');
       }
     } catch (err) {
-      setSubmitError('Erro ao comunicar com o servidor. Tente novamente.');
+      const requestError = err as { status?: number; code?: string; message?: string };
+      if (requestError.status === 409 && requestError.code === 'ALREADY_SUBMITTED') {
+        const updatedPart = await backendService.getParticipantEvent(user.id, day.id);
+        setParticipation(updatedPart.participation);
+        setQuestions((updatedPart.questions as Question[]).filter(q => q.active));
+        localStorage.removeItem(`draft_quiz_${user.id}_${day.id}`);
+        quizIdempotencyKeyRef.current = null;
+        toast.success('O servidor confirmou que suas respostas já foram recebidas.');
+      } else {
+        // Rede, 429 e 5xx preservam a chave: o próximo clique repete a mesma
+        // operação de forma segura. Erros definitivos permitem um novo payload.
+        if (requestError.status && requestError.status < 500 && requestError.status !== 429) {
+          quizIdempotencyKeyRef.current = null;
+        }
+        setSubmitError(requestError.message || 'Erro ao comunicar com o servidor. Tente novamente.');
+      }
     } finally {
       setSubmitting(false);
     }

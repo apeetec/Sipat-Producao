@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Maximize, CheckCircle2, FastForward } from 'lucide-react';
 import { formatPercent } from '../../utils/formatters';
 
 export interface VideoPlayerProps {
   videoUrl: string;
   initialProgressPercent: number;
-  onProgressUpdate: (currentSeconds: number, durationSeconds: number) => Promise<{ videoProgressPercent: number; questionnaireUnlocked: boolean }>;
+  onProgressUpdate: (currentSeconds: number, durationSeconds: number, clientEventId: string) => Promise<{ videoProgressPercent: number; questionnaireUnlocked: boolean }>;
   isUnlocked: boolean;
 }
 
@@ -26,11 +26,88 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [progressPercent, setProgressPercent] = useState(initialProgressPercent);
   const [isSaving, setIsSaving] = useState(false);
 
-  const lastReportedTimeRef = useRef(0);
+  const lastScheduledTimeRef = useRef(0);
+  const maxWatchedTimeRef = useRef(0);
+  const syncInFlightRef = useRef(false);
+  const completionSyncedRef = useRef(initialProgressPercent >= 99 || isUnlocked);
+  const retryTimerRef = useRef<number | null>(null);
+  const pendingSyncRef = useRef<{ current: number; duration: number; eventId: string; force: boolean; attempt: number } | null>(null);
 
   useEffect(() => {
     setProgressPercent(initialProgressPercent);
-  }, [initialProgressPercent]);
+    completionSyncedRef.current = initialProgressPercent >= 99 || isUnlocked;
+  }, [initialProgressPercent, isUnlocked]);
+
+  useEffect(() => () => {
+    if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+  }, []);
+
+  const performProgressSync = useCallback(async (payload: { current: number; duration: number; eventId: string; force: boolean; attempt: number }) => {
+    if (completionSyncedRef.current) return;
+    if (syncInFlightRef.current) {
+      pendingSyncRef.current = payload;
+      return;
+    }
+    syncInFlightRef.current = true;
+    let retryScheduled = false;
+    try {
+      const res = await onProgressUpdate(payload.current, payload.duration, payload.eventId);
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      setProgressPercent(previous => Math.max(previous, res.videoProgressPercent));
+      if (res.questionnaireUnlocked || res.videoProgressPercent >= 99) {
+        completionSyncedRef.current = true;
+        pendingSyncRef.current = null;
+      }
+    } catch (error) {
+      const requestError = error as { status?: number; retryAfterSeconds?: number };
+      const retryable = !requestError.status || requestError.status === 429 || requestError.status >= 500;
+      if (retryable && payload.attempt < 4) {
+        retryScheduled = true;
+        const delaySeconds = requestError.retryAfterSeconds ?? Math.min(30, 2 ** payload.attempt);
+        if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = window.setTimeout(() => {
+          retryTimerRef.current = null;
+          void performProgressSync({ ...payload, attempt: payload.attempt + 1 });
+        }, delaySeconds * 1000);
+      } else {
+        console.error('Failed to sync video progress:', error);
+      }
+    } finally {
+      syncInFlightRef.current = false;
+      if (!retryScheduled) {
+        const pending = pendingSyncRef.current;
+        pendingSyncRef.current = null;
+        if (pending && !completionSyncedRef.current) void performProgressSync(pending);
+      }
+    }
+  }, [onProgressUpdate]);
+
+  const requestProgressSync = useCallback((current: number, dur: number, force = false) => {
+    if (!Number.isFinite(current) || !Number.isFinite(dur) || dur <= 0) return;
+    if (completionSyncedRef.current) return;
+    if (current + 1 < lastScheduledTimeRef.current) return;
+    if (!force && current - lastScheduledTimeRef.current < 15) return;
+    lastScheduledTimeRef.current = Math.max(lastScheduledTimeRef.current, current);
+    void performProgressSync({
+      current,
+      duration: dur,
+      eventId: crypto.randomUUID(),
+      force,
+      attempt: 0,
+    });
+  }, [performProgressSync]);
+
+  useEffect(() => {
+    const syncWhenOnline = () => {
+      const video = videoRef.current;
+      if (video) requestProgressSync(video.currentTime, video.duration, true);
+    };
+    window.addEventListener('online', syncWhenOnline);
+    return () => window.removeEventListener('online', syncWhenOnline);
+  }, [requestProgressSync]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -42,29 +119,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
-  const handleTimeUpdate = async () => {
+  const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     const current = videoRef.current.currentTime;
     const dur = videoRef.current.duration || 1;
     setCurrentTime(current);
+    if (!videoRef.current.seeking)
+      maxWatchedTimeRef.current = Math.max(maxWatchedTimeRef.current, current);
 
     const calculatedPercent = Math.min(100, Math.round((current / dur) * 100));
     if (calculatedPercent > progressPercent) {
       setProgressPercent(calculatedPercent);
     }
 
-    // Throttle progress report to every 5 seconds or when hitting 99%
-    if (Math.abs(current - lastReportedTimeRef.current) >= 5 || calculatedPercent >= 99) {
-      lastReportedTimeRef.current = current;
-      try {
-        const res = await onProgressUpdate(current, dur);
-        if (res.videoProgressPercent > progressPercent) {
-          setProgressPercent(res.videoProgressPercent);
-        }
-      } catch (err) {
-        console.error('Failed to sync video progress:', err);
-      }
-    }
+    // A API recebe no máximo um evento a cada 15 s. A conclusão é enviada uma
+    // única vez e a rotina acima impede sobreposição e repete 429/5xx com backoff.
+    requestProgressSync(current, dur, calculatedPercent >= 99);
   };
 
   const handleLoadedMetadata = () => {
@@ -77,12 +147,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       const resumeTime = (initialProgressPercent / 100) * dur;
       videoRef.current.currentTime = resumeTime;
       setCurrentTime(resumeTime);
+      lastScheduledTimeRef.current = resumeTime;
+      maxWatchedTimeRef.current = resumeTime;
     }
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!videoRef.current || duration === 0) return;
-    const newTime = parseFloat(e.target.value);
+    const requestedTime = parseFloat(e.target.value);
+    const newTime = Math.min(requestedTime, maxWatchedTimeRef.current + 1);
     videoRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -112,7 +185,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setProgressPercent(100);
 
     try {
-      await onProgressUpdate(target, dur);
+      await onProgressUpdate(target, dur, crypto.randomUUID());
     } finally {
       setIsSaving(false);
     }
@@ -154,7 +227,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           playsInline
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
-          onEnded={() => setIsPlaying(false)}
+          onPause={() => requestProgressSync(videoRef.current?.currentTime ?? 0, videoRef.current?.duration ?? 0, true)}
+          onEnded={() => {
+            setIsPlaying(false);
+            requestProgressSync(videoRef.current?.currentTime ?? 0, videoRef.current?.duration ?? 0, true);
+          }}
           className="w-full h-full object-contain cursor-pointer"
           onClick={togglePlay}
         />

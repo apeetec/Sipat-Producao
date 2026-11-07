@@ -283,9 +283,8 @@ integration("API integrada com MariaDB", () => {
         expect(attendance.status).toBe(200);
         expect(attendance.body.valid).toBe(true);
 
-        const quiz = await asParticipant(
-          request(app).post(`/api/events/${eventId}/quiz`),
-        ).send({
+        const quizIdempotencyKey = `integration-quiz-${suffix}`;
+        const quizPayload = {
           answers: {
             [questionId]: { alternativeId: correctOptionId },
             [ratingQuestionId]: {
@@ -294,14 +293,28 @@ integration("API integrada com MariaDB", () => {
             },
           },
           suggestions: {},
-        });
-        expect(quiz.status).toBe(200);
+        };
+        const quiz = await asParticipant(
+          request(app)
+            .post(`/api/events/${eventId}/quiz`)
+            .set("Idempotency-Key", quizIdempotencyKey),
+        ).send(quizPayload);
+        expect(quiz.status).toBe(201);
         expect(quiz.body).toMatchObject({
           correctCount: 1,
           scoredQuestionCount: 1,
           percentage: 100,
           perfectScore: true,
         });
+
+        const replayedQuiz = await asParticipant(
+          request(app)
+            .post(`/api/events/${eventId}/quiz`)
+            .set("Idempotency-Key", quizIdempotencyKey),
+        ).send(quizPayload);
+        expect(replayedQuiz.status).toBe(200);
+        expect(replayedQuiz.headers["idempotency-replayed"]).toBe("true");
+        expect(replayedQuiz.body).toEqual(quiz.body);
 
         const persistedAnswers = await rows<
           Array<RowDataPacket & {

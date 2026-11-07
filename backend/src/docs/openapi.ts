@@ -106,7 +106,7 @@ export const openapi = {
   openapi: "3.1.0",
   info: {
     title: "Portal SIPAT REST API",
-    version: "1.0.0",
+    version: "1.1.0",
     description:
       "API de produção do Portal SIPAT. Rotas compatíveis em /api e versionadas em /api/v1.",
   },
@@ -290,11 +290,43 @@ export const openapi = {
       "post",
       { tag: "Participante", parameters: id, body },
     ),
-    "/events/{id}/quiz": operation(
-      "Submeter questionário uma única vez",
-      "post",
-      { tag: "Participante", parameters: id, body },
-    ),
+    "/events/{id}/quiz": {
+      post: {
+        summary: "Submeter questionário uma única vez",
+        description:
+          "Use uma Idempotency-Key nova por tentativa lógica e reutilize a mesma chave em retries. A primeira gravação retorna 201; uma repetição confirmada retorna 200 e Idempotency-Replayed: true.",
+        tags: ["Participante"],
+        security,
+        parameters: [
+          ...id,
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: { type: "string", minLength: 16, maxLength: 150 },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: body } },
+        },
+        responses: {
+          "201": { description: "Respostas gravadas atomicamente.", ...json },
+          "200": {
+            description: "Resposta idempotente recuperada ou cliente legado.",
+            headers: {
+              "Idempotency-Replayed": {
+                schema: { type: "boolean" },
+                description: "true quando a resposta foi recuperada.",
+              },
+            },
+            ...json,
+          },
+          "409": { description: "Já submetido ou chave reutilizada com outro payload." },
+          ...commonErrors,
+        },
+      },
+    },
     "/events/participations/me": operation(
       "Listar participações do usuário autenticado",
       "get",
@@ -355,6 +387,11 @@ export const openapi = {
         responses: { "202": { description: "Relatório aceito" }, ...commonErrors },
       },
     },
+    "/admin/metrics": operation(
+      "Consultar métricas operacionais do processo",
+      "get",
+      { tag: "Admin — Observabilidade" },
+    ),
     "/admin/users": {
       ...operation("Listar usuários", "get", { tag: "Admin — Usuários" }),
       ...operation("Criar usuário", "post", {

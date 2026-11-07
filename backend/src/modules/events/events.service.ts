@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { execute, rows, transaction } from "../../database/pool.js";
 import { AppError, notFound } from "../../shared/errors.js";
@@ -111,6 +111,34 @@ function assertWindow(day: RowDataPacket) {
       "WINDOW_CLOSED",
       "Esta sessão não está disponível neste horário.",
     );
+}
+
+function quizRequestHash(
+  eventDayId: string,
+  payload: {
+    answers: Record<string, any>;
+    suggestions: Record<string, string>;
+  },
+) {
+  const canonicalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonicalize);
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, nested]) => [key, canonicalize(nested)]),
+      );
+    return value;
+  };
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        eventDayId,
+        answers: canonicalize(payload.answers),
+        suggestions: canonicalize(payload.suggestions),
+      }),
+    )
+    .digest("hex");
 }
 
 export class EventsService {
@@ -247,6 +275,25 @@ export class EventsService {
     assertWindow(day);
     return transaction(async (db) => {
       const id = await ensureParticipation(auth.id, eventDayId, db);
+      if (data.clientEventId) {
+        const duplicate = await rows<RowDataPacket[]>(
+          "SELECT id FROM video_progress_events WHERE participation_id=? AND client_event_id=? LIMIT 1 FOR UPDATE",
+          [id, data.clientEventId],
+          db,
+        );
+        if (duplicate[0]) {
+          const current = await getParticipation(auth.id, eventDayId, db);
+          const unlocked =
+            current?.modality === "in_person" ||
+            Number(current?.videoProgressPercent ?? 0) >=
+              Number(day.video_completion_threshold_percent);
+          return {
+            videoProgressPercent: Number(current?.videoProgressPercent ?? 0),
+            questionnaireUnlocked: unlocked,
+            participation: current,
+          };
+        }
+      }
       // O lock serializa eventos concorrentes e impede dois saltos artificiais simultâneos.
       const previous = await rows<RowDataPacket[]>(
         "SELECT current_seconds,reported_at FROM video_progress_events WHERE participation_id=? ORDER BY reported_at DESC LIMIT 1 FOR UPDATE",
@@ -311,11 +358,44 @@ export class EventsService {
       answers: Record<string, any>;
       suggestions: Record<string, string>;
     },
+    idempotencyKey?: string,
     ip?: string,
   ) {
     return transaction(async (db) => {
       const day = await getDay(eventDayId, auth.campaignId, db);
       assertWindow(day);
+      const operation = `quiz:${eventDayId}`;
+      const requestHash = quizRequestHash(eventDayId, payload);
+      if (idempotencyKey) {
+        await execute(
+          `DELETE FROM idempotency_keys WHERE user_id=? AND operation=? AND idempotency_key=? AND expires_at<=UTC_TIMESTAMP(3)`,
+          [auth.id, operation, idempotencyKey],
+          db,
+        );
+        await execute(
+          `INSERT IGNORE INTO idempotency_keys(id,user_id,operation,idempotency_key,request_hash,expires_at) VALUES(?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))`,
+          [randomUUID(), auth.id, operation, idempotencyKey, requestHash],
+          db,
+        );
+        const stored = await rows<RowDataPacket[]>(
+          `SELECT request_hash,response_status,response_body FROM idempotency_keys WHERE user_id=? AND operation=? AND idempotency_key=? AND deleted_at IS NULL FOR UPDATE`,
+          [auth.id, operation, idempotencyKey],
+          db,
+        );
+        if (!stored[0] || stored[0].request_hash !== requestHash)
+          throw new AppError(
+            409,
+            "IDEMPOTENCY_KEY_REUSED",
+            "Esta chave de envio já foi usada com respostas diferentes.",
+          );
+        if (stored[0].response_status && stored[0].response_body) {
+          const body =
+            typeof stored[0].response_body === "string"
+              ? JSON.parse(stored[0].response_body)
+              : stored[0].response_body;
+          return { body, replayed: true, status: 200 };
+        }
+      }
       const id = await ensureParticipation(auth.id, eventDayId, db);
       // FOR UPDATE garante a regra de submissão única mesmo com duplo clique/retry.
       const p = await rows<RowDataPacket[]>(
@@ -434,13 +514,20 @@ export class EventsService {
         ip,
         db,
       );
-      return {
+      const body = {
         correctCount: correct,
         scoredQuestionCount: scored,
         percentage,
         perfectScore: perfect,
         submittedAt: new Date().toISOString(),
       };
+      if (idempotencyKey)
+        await execute(
+          `UPDATE idempotency_keys SET response_status=201,response_body=? WHERE user_id=? AND operation=? AND idempotency_key=?`,
+          [JSON.stringify(body), auth.id, operation, idempotencyKey],
+          db,
+        );
+      return { body, replayed: false, status: idempotencyKey ? 201 : 200 };
     });
   }
   async listParticipations(

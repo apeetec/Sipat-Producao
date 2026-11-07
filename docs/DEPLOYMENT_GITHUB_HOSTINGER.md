@@ -229,7 +229,9 @@ Nunca incluir:
 | Entry compilada | `dist/server.js` |
 | Health | `/api/health/ready` |
 
-As variáveis são cadastradas no painel, não no Git. Em produção, `PUBLIC_BASE_URL` deve ser a origem HTTPS do backend e `CORS_ORIGINS` deve incluir a origem exata do frontend, sem path/barra final desnecessária.
+As variáveis são cadastradas no painel, não no Git. Em produção, `PUBLIC_BASE_URL` deve ser a origem HTTPS do backend e `CORS_ORIGINS` deve incluir a origem exata do frontend, sem path/barra final desnecessária. Copie também os limites de `backend/.env.example`; em especial, o teto global antigo de `300` não deve permanecer no painel. `MEDIA_PUBLIC_BASE_URL` só deve ser preenchida quando a origem/CDN realmente publicar o mesmo storage de `/api/uploads/*`.
+
+Para a release de capacidade de 2026-11-07, aplicar `database/migrations/20261107_idempotency_keys.sql` se a tabela ainda não existir, antes de reiniciar o backend. O runbook de métricas, ensaio 100/200/500, mídia e rollback está em `docs/PERFORMANCE_CAPACITY_RUNBOOK.md`.
 
 ### 8.4 PM2 em VPS
 

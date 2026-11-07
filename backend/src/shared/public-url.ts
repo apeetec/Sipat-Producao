@@ -12,6 +12,8 @@ export function canonicalPublicUrl(value?: string | null): string | undefined {
     const parsed = new URL(value);
     const uploadPrefix = `${env.API_PREFIX}/uploads/`;
     if (parsed.pathname.startsWith(uploadPrefix)) {
+      if (env.mediaPublicBaseUrl)
+        return `${env.mediaPublicBaseUrl}${parsed.pathname}${parsed.search}${parsed.hash}`;
       if (env.publicBaseUrl)
         return `${env.publicBaseUrl}${parsed.pathname}${parsed.search}${parsed.hash}`;
       // Produção sempre expõe a API por TLS. Esta salvaguarda também corrige

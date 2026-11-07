@@ -11,6 +11,11 @@ const falseByDefault = z
   .default("false")
   .transform((value) => value === "true");
 
+const optionalUrl = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().url().optional(),
+);
+
 const schema = z
   .object({
   NODE_ENV: z
@@ -40,14 +45,23 @@ const schema = z
   IP_HASH_SECRET: z.string().min(16),
   PASSWORD_BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(900000),
-  RATE_LIMIT_MAX: z.coerce.number().int().min(10).default(300),
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1000).default(5000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(3).default(8),
+  AUTHENTICATED_RATE_LIMIT_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .default(60000),
+  ATTENDANCE_RATE_LIMIT_MAX: z.coerce.number().int().min(5).default(10),
+  VIDEO_PROGRESS_RATE_LIMIT_MAX: z.coerce.number().int().min(4).default(12),
+  QUIZ_RATE_LIMIT_MAX: z.coerce.number().int().min(2).default(5),
   HONEYPOT_BLOCK_MS: z.coerce.number().int().min(60000).default(3600000),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   SWAGGER_ENABLED: booleanFromString,
   UPLOAD_DIR: z.string().min(1).default("storage/uploads"),
+  MEDIA_PUBLIC_BASE_URL: optionalUrl,
   MAX_UPLOAD_IMAGE_MB: z.coerce.number().int().min(1).max(25).default(10),
   MAX_UPLOAD_VIDEO_MB: z.coerce.number().int().min(1).max(1024).default(500),
   EMAIL_MODE: z.enum(["outbox", "smtp"]).default("outbox"),
@@ -101,6 +115,7 @@ export const env = {
   // XAMPP local costuma usar root sem senha. Produção é bloqueada acima.
   DATABASE_PASSWORD: result.data.DATABASE_PASSWORD ?? "",
   publicBaseUrl: result.data.PUBLIC_BASE_URL?.replace(/\/$/, ""),
+  mediaPublicBaseUrl: result.data.MEDIA_PUBLIC_BASE_URL?.replace(/\/$/, ""),
   isProduction: result.data.NODE_ENV === "production",
   corsOrigins: result.data.CORS_ORIGINS.split(",")
     .map((origin) => origin.trim())

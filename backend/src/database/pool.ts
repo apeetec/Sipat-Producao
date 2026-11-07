@@ -4,6 +4,10 @@ import mysql, {
   RowDataPacket,
 } from "mysql2/promise";
 import { env } from "../config/env.js";
+import {
+  beginConnectionWait,
+  beginDatabaseOperation,
+} from "../observability/metrics.js";
 
 export const pool = mysql.createPool({
   host: env.DATABASE_HOST,
@@ -27,8 +31,15 @@ export async function rows<T extends RowDataPacket[]>(
   params: any[] = [],
   db: DbConnection = pool,
 ): Promise<T> {
-  const [result] = await db.execute<T>(sql, params);
-  return result;
+  const finish = beginDatabaseOperation();
+  try {
+    const [result] = await db.execute<T>(sql, params);
+    finish();
+    return result;
+  } catch (error) {
+    finish(true);
+    throw error;
+  }
 }
 
 export async function execute(
@@ -36,14 +47,22 @@ export async function execute(
   params: any[] = [],
   db: DbConnection = pool,
 ): Promise<ResultSetHeader> {
-  const [result] = await db.execute<ResultSetHeader>(sql, params);
-  return result;
+  const finish = beginDatabaseOperation();
+  try {
+    const [result] = await db.execute<ResultSetHeader>(sql, params);
+    finish();
+    return result;
+  } catch (error) {
+    finish(true);
+    throw error;
+  }
 }
 
 export async function transaction<T>(
   work: (connection: PoolConnection) => Promise<T>,
 ): Promise<T> {
-  const connection = await pool.getConnection();
+  const finishWait = beginConnectionWait();
+  const connection = await pool.getConnection().finally(finishWait);
   try {
     await connection.beginTransaction();
     const result = await work(connection);

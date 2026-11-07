@@ -44,6 +44,18 @@ let memoryToken: string | null = null;
 function getAuthToken(): string | null { return memoryToken; }
 export function setNodeAuthToken(token: string | null): void { memoryToken = token; }
 
+export class HttpRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+    public readonly retryAfterSeconds?: number,
+  ) {
+    super(message);
+    this.name = 'HttpRequestError';
+  }
+}
+
 /**
  * Utilitário central para executar chamadas HTTP com tratamento de erros padronizado
  */
@@ -81,9 +93,11 @@ export async function request<T>(endpoint: string, options: RequestInit = {}, ca
 
   if (!response.ok) {
     let errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+    let errorCode: string | undefined;
     try {
       const errorJson = await response.json();
       errorMessage = errorJson?.error?.message || errorJson?.message || errorMessage;
+      errorCode = errorJson?.error?.code || errorJson?.code;
       const validationDetails = errorJson?.error?.details;
       if (Array.isArray(validationDetails) && validationDetails.length > 0) {
         const fields = validationDetails
@@ -97,9 +111,13 @@ export async function request<T>(endpoint: string, options: RequestInit = {}, ca
     } catch {
       // Falha ao parsear JSON de erro
     }
-    const requestError = new Error(errorMessage) as Error & { status?: number };
-    requestError.status = response.status;
-    throw requestError;
+    const retryAfter = Number(response.headers.get('retry-after'));
+    throw new HttpRequestError(
+      errorMessage,
+      response.status,
+      errorCode,
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+    );
   }
 
   if (response.status === 204) return undefined as T;
@@ -184,8 +202,8 @@ export const NodeEventsApi = {
    * Retorna os detalhes de um dia específico pelo slug amigável
    * @route GET /api/events/:slug
    */
-  async getEventDayBySlug(slug: string): Promise<{ day: EventDay; questions: Question[] }> {
-    return request<{ day: EventDay; questions: Question[] }>(`/api/events/${slug}`);
+  async getEventDayBySlug(slug: string): Promise<{ eventDay: EventDay; day: EventDay; questions: Question[]; participation: Participation | null; isUnlocked: boolean }> {
+    return request(`/api/events/${slug}`);
   },
 
   async getParticipantEvent(dayId: string): Promise<{ eventDay: EventDay; questions: Question[]; participation: Participation | null; isUnlocked: boolean }> {
@@ -211,10 +229,10 @@ export const NodeEventsApi = {
    * @param currentSeconds Segundos já reproduzidos
    * @param durationSeconds Duração total do vídeo
    */
-  async reportVideoProgress(dayId: string, currentSeconds: number, durationSeconds: number): Promise<{ videoProgressPercent: number; questionnaireUnlocked: boolean }> {
+  async reportVideoProgress(dayId: string, currentSeconds: number, durationSeconds: number, clientEventId?: string): Promise<{ videoProgressPercent: number; questionnaireUnlocked: boolean }> {
     return request<{ videoProgressPercent: number; questionnaireUnlocked: boolean }>(`/api/events/${dayId}/video-progress`, {
       method: 'POST',
-      body: JSON.stringify({ currentSeconds, durationSeconds }),
+      body: JSON.stringify({ currentSeconds, durationSeconds, clientEventId }),
     });
   },
 
@@ -225,10 +243,12 @@ export const NodeEventsApi = {
   async submitQuiz(
     dayId: string,
     answers: Record<string, { alternativeId?: string; text?: string; rating?: number }>,
-    suggestions?: Record<string, string>
+    suggestions?: Record<string, string>,
+    idempotencyKey?: string,
   ): Promise<{ correctCount: number; scoredQuestionCount: number; percentage: number; perfectScore: boolean }> {
     return request<{ correctCount: number; scoredQuestionCount: number; percentage: number; perfectScore: boolean }>(`/api/events/${dayId}/quiz`, {
       method: 'POST',
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       body: JSON.stringify({ answers, suggestions }),
     });
   },

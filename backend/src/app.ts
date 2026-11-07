@@ -32,6 +32,8 @@ import {
   uploadsPublicRouter,
 } from "./modules/uploads/uploads.routes.js";
 import { reportsAdminRouter } from "./modules/reports/reports.routes.js";
+import { metricsRouter } from "./observability/metrics.routes.js";
+import { requestMetrics } from "./observability/metrics.js";
 
 export function createApp() {
   const app = express();
@@ -39,6 +41,7 @@ export function createApp() {
   app.set("trust proxy", env.TRUST_PROXY);
   app.use(
     requestContext,
+    requestMetrics,
     pinoHttp({ logger }),
     honeypot,
     helmet({
@@ -93,6 +96,7 @@ export function createApp() {
   api.use("/uploads", uploadsPublicRouter);
   api.use("/admin/uploads", uploadsAdminRouter);
   api.use("/admin/reports", reportsAdminRouter);
+  api.use("/admin/metrics", metricsRouter);
   api.use("/admin", adminRouter);
   api.use("/admin/participations", participationsRouter);
   api.use("/admin/draws", drawsAdminRouter);

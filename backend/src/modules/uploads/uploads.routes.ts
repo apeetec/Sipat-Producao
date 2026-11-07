@@ -162,6 +162,7 @@ uploadsAdminRouter.post(
       // Em hospedagens com proxy reverso, req.protocol pode ser "http" mesmo
       // para uma chamada HTTPS. A origem pública explícita evita Mixed Content.
       const baseUrl =
+        env.mediaPublicBaseUrl ??
         env.publicBaseUrl ??
         `${env.isProduction ? "https" : req.protocol}://${req.get("host")}`;
       res.status(201).json({
@@ -194,6 +195,7 @@ uploadsPublicRouter.get(
     });
 
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     res.sendFile(filePath);
   }),

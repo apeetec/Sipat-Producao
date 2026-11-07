@@ -19,10 +19,17 @@ export const eventsController = {
     ),
   progress: async (req: Request, res: Response) =>
     res.json(await eventsService.progress(req.auth!, idOf(req), req.body)),
-  submit: async (req: Request, res: Response) =>
-    res.json(
-      await eventsService.submit(req.auth!, idOf(req), req.body, req.ip),
-    ),
+  submit: async (req: Request, res: Response) => {
+    const result = await eventsService.submit(
+      req.auth!,
+      idOf(req),
+      req.body,
+      req.get("idempotency-key"),
+      req.ip,
+    );
+    if (result.replayed) res.setHeader("Idempotency-Replayed", "true");
+    return res.status(result.status).json(result.body);
+  },
   participations: async (req: Request, res: Response) =>
     res.json(
       await eventsService.listParticipations(

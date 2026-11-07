@@ -1,5 +1,5 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 import { env } from "../config/env.js";
@@ -14,7 +14,12 @@ const rateResponse = {
 };
 export const globalLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
-  limit: env.RATE_LIMIT_MAX,
+  // Um teto por IP continua mitigando rajadas volumétricas, mas nunca volta ao
+  // antigo valor de 300, que bloqueava centenas de colaboradores atrás do
+  // mesmo NAT. O progresso tem seu próprio limite autenticado abaixo.
+  limit: Math.max(env.RATE_LIMIT_MAX, 5000),
+  skip: (req) =>
+    req.method === "OPTIONS" || /\/events\/[^/]+\/video-progress$/.test(req.path),
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: rateResponse,
@@ -30,6 +35,8 @@ export const loginLimiter = rateLimit({
 export const sensitiveLimiter = rateLimit({
   windowMs: 60_000,
   limit: 10,
+  keyGenerator: (req) =>
+    req.auth?.id ?? ipKeyGenerator(req.ip ?? "127.0.0.1"),
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: rateResponse,
@@ -41,6 +48,31 @@ export const adminBatchLimiter = rateLimit({
   legacyHeaders: false,
   message: rateResponse,
 });
+
+function authenticatedOperationLimiter(limit: number, operation: string) {
+  return rateLimit({
+    windowMs: env.AUTHENTICATED_RATE_LIMIT_WINDOW_MS,
+    limit,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    keyGenerator: (req) =>
+      `${operation}:${req.auth?.id ?? "anonymous"}:${String(req.params.id ?? "unknown")}`,
+    message: rateResponse,
+  });
+}
+
+export const attendanceLimiter = authenticatedOperationLimiter(
+  env.ATTENDANCE_RATE_LIMIT_MAX,
+  "attendance",
+);
+export const videoProgressLimiter = authenticatedOperationLimiter(
+  env.VIDEO_PROGRESS_RATE_LIMIT_MAX,
+  "video-progress",
+);
+export const quizSubmissionLimiter = authenticatedOperationLimiter(
+  env.QUIZ_RATE_LIMIT_MAX,
+  "quiz",
+);
 
 const blocked = new Map<string, number>();
 const traps = new Set([

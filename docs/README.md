@@ -13,6 +13,7 @@ Este diretório reúne documentação técnica, operacional e histórica. Para e
 | [`AI_CHANGE_PLAYBOOK.md`](AI_CHANGE_PLAYBOOK.md) | Mapa arquivo→funcionalidade, receitas de mudança e matriz de testes | Durante a implementação |
 | [`DATABASE_MODEL.md`](DATABASE_MODEL.md) | Modelo relacional detalhado previamente existente | Para contexto complementar do banco |
 | [`LOCAL_TESTING_AND_DEPLOY.md`](LOCAL_TESTING_AND_DEPLOY.md) | Tutorial local com XAMPP e procedimentos de teste | Para preparar o ambiente local |
+| [`PERFORMANCE_CAPACITY_RUNBOOK.md`](PERFORMANCE_CAPACITY_RUNBOOK.md) | Rate limits NAT-safe, idempotência, métricas, mídia, teste 100/200/500 e rollback | Antes de dimensionar ou testar carga |
 
 ## Fontes executáveis de verdade
 

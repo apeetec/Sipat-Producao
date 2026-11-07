@@ -418,7 +418,10 @@ erDiagram
 
 - Infraestrutura preparada para idempotência por usuário/operação/chave.
 - Guarda hash da request e resposta/status opcionais com expiração.
-- Não assumir que todas as rotas já a utilizam; verificar código.
+- `POST /events/:id/quiz` utiliza a tabela na mesma transação das respostas e da participação; a chave expira em 24 horas.
+- Repetição com o mesmo usuário/operação/chave e payload recupera a resposta; payload diferente recebe conflito.
+- O reset administrativo da participação remove as chaves do quiz daquela tentativa.
+- Outras rotas não devem ser assumidas como idempotentes sem verificar o código.
 
 #### `user_import_jobs`
 

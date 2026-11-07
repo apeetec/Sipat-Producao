@@ -284,7 +284,7 @@ export class BackendService {
     durationSeconds: number,
     _clientEventId?: string
   ): Promise<{ videoProgressPercent: number; questionnaireUnlocked: boolean }> {
-    if (isNodeBackendEnabled) return NodeEventsApi.reportVideoProgress(eventDayId, currentSeconds, durationSeconds);
+    if (isNodeBackendEnabled) return NodeEventsApi.reportVideoProgress(eventDayId, currentSeconds, durationSeconds, _clientEventId);
     const existing = await participationRepository.get(userId, eventDayId);
     const now = new Date().toISOString();
 
@@ -323,6 +323,13 @@ export class BackendService {
   /**
    * 6. Dados do evento para o participante (sem gabarito)
    */
+  async getParticipantEventBySlug(userId: string, slug: string) {
+    if (isNodeBackendEnabled) return NodeEventsApi.getEventDayBySlug(slug);
+    const day = await eventRepository.getBySlug(slug);
+    if (!day) return null;
+    return this.getParticipantEvent(userId, day.id);
+  }
+
   async getParticipantEvent(userId: string, eventDayId: string): Promise<{
     eventDay: EventDay;
     questions: Array<Omit<Question, 'alternatives'> & { alternatives: Array<{ id: string; text: string }> }>;
@@ -386,7 +393,12 @@ export class BackendService {
     submittedAt: string;
   }>> {
     if (isNodeBackendEnabled) {
-      const result = await NodeEventsApi.submitQuiz(params.eventDayId, params.answers, params.suggestions);
+      const result = await NodeEventsApi.submitQuiz(
+        params.eventDayId,
+        params.answers,
+        params.suggestions,
+        params.idempotencyKey,
+      );
       return { success: true, data: { ...result, submittedAt: new Date().toISOString() } };
     }
     const { userId, eventDayId, answers, suggestions } = params;

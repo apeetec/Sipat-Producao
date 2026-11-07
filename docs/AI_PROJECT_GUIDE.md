@@ -506,6 +506,16 @@ npm run verify:all
 5. Documentos históricos citam Firebase/Firestore; isso não é arquitetura ativa.
 6. Upload local exige volume persistente e backup; Git não armazena mídia.
 7. Swagger em produção aumenta a superfície de descoberta; manter habilitado apenas conforme política operacional.
+8. A capacidade de 100/200/500 concorrentes depende do hardware e só pode ser certificada com o procedimento autorizado de `docs/PERFORMANCE_CAPACITY_RUNBOOK.md`.
+
+### 12.1 Controles de capacidade adicionados em 2026-11-07
+
+- rate limit de presença, vídeo e quiz usa usuário autenticado + evento, evitando bloqueio coletivo atrás de NAT;
+- player sincroniza a cada 15 s, sem sobreposição, com retry controlado;
+- quiz usa `Idempotency-Key` e a tabela `idempotency_keys` na mesma transação das respostas;
+- `GET /api/admin/metrics` expõe p95/p99, 429/5xx, processo e pressão do banco somente para administrador;
+- mídia pode usar `MEDIA_PUBLIC_BASE_URL` e o modelo Nginx serve o volume sem atravessar Node;
+- o teste k6 bloqueia os domínios de produção e exige contas exclusivas.
 
 ## 13. Decisões arquiteturais e trade-offs
 

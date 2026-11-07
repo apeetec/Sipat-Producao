@@ -350,6 +350,21 @@ export class AdminRepository {
         participationIds,
         db,
       );
+      const idempotencyValues: unknown[] = [campaignId, ...ids];
+      let idempotencyEventFilter = "";
+      if (eventDayId) {
+        idempotencyEventFilter = " AND e.id=?";
+        idempotencyValues.push(eventDayId);
+      }
+      // Um reset administrativo inicia uma nova tentativa lógica; confirmações
+      // idempotentes da tentativa anterior não podem ser reapresentadas.
+      await execute(
+        `DELETE i FROM idempotency_keys i
+         JOIN event_days e ON i.operation=CONCAT('quiz:',e.id)
+         WHERE e.campaign_id=? AND i.user_id IN (${userMarks})${idempotencyEventFilter}`,
+        idempotencyValues,
+        db,
+      );
       return {
         affectedUsers: ids.length,
         resetParticipations: participationIds.length,
